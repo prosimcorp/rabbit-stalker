@@ -1,0 +1,27 @@
+# permissions for end users to view workloadactions.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: workloadaction-viewer-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: rabbit-stalker-2
+    app.kubernetes.io/part-of: rabbit-stalker-2
+    app.kubernetes.io/managed-by: kustomize
+  name: workloadaction-viewer-role
+rules:
+- apiGroups:
+  - rabbit-stalker.docplanner.com
+  resources:
+  - workloadactions
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - rabbit-stalker.docplanner.com
+  resources:
+  - workloadactions/status
+  verbs:
+  - get

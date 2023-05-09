@@ -1,0 +1,48 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: manager-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - daemonsets
+  - deployments
+  - secrets
+  - statefulsets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - rabbit-stalker.docplanner.com
+  resources:
+  - workloadactions
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - rabbit-stalker.docplanner.com
+  resources:
+  - workloadactions/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - rabbit-stalker.docplanner.com
+  resources:
+  - workloadactions/status
+  verbs:
+  - get
+  - patch
+  - update
