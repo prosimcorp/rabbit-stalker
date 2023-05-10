@@ -347,13 +347,13 @@ kubectl apply -f config/samples/
 2. Build and push your image to the location specified by `IMG`:
 
 ```sh
-make docker-build docker-push IMG=<some-registry>/rabbit-stalker:tag
+make docker-build docker-push IMG=docplanner/rabbit-stalker:tag
 ```
 
 3. Deploy the controller to the cluster with the image specified by `IMG`:
 
 ```sh
-make deploy IMG=<some-registry>/rabbit-stalker:tag
+make deploy IMG=docplanner/rabbit-stalker:tag
 ```
 
 ### Uninstall CRDs
