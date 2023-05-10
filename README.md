@@ -1,4 +1,7 @@
 # rabbit-stalker
+
+<img src="https://github.com/docplanner/rabbit-stalker/raw/main/docs/img/logo.png" width="100">
+
 Kubernetes Operator to get status related to specific queues on RabbitMQ. Depending on 
 some condition, it's able to restart or delete a Kubernetes workload
 
