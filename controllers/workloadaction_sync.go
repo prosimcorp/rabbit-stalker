@@ -10,6 +10,9 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
+	"regexp"
+	"strconv"
+	"strings"
 	"time"
 
 	rabbitstalkerv1alpha1 "docplanner.com/rabbit-stalker/api/v1alpha1"
@@ -31,7 +34,7 @@ const (
 	HttpRequestTimeout = 5 * time.Second
 
 	// TODO
-	AnnotationRestartedAt = "rabbit-stalker.docplanner.com/restartedAtt"
+	AnnotationRestartedAt = "rabbit-stalker.docplanner.com/restartedAt"
 
 	// parseSyncTimeError error message for invalid value on 'synchronization' parameter
 	parseSyncTimeError = "Can not parse the synchronization time from workloadAction: %s"
@@ -119,6 +122,133 @@ func (r *WorkloadActionReconciler) GetWorkloadResource(ctx context.Context, work
 	return resource, err
 }
 
+// addSources return a list with the content of the extra sources
+func (r *WorkloadActionReconciler) addSources(ctx context.Context, workloadActionManifest *rabbitstalkerv1alpha1.WorkloadAction, resources *[]string) (err error) {
+
+	// Fill the sources content, one by one
+	sourceObject := &unstructured.Unstructured{}
+
+	for _, sourceReference := range workloadActionManifest.Spec.Sources {
+		sourceObject.SetGroupVersionKind(sourceReference.GroupVersionKind())
+
+		err = r.Get(ctx, client.ObjectKey{
+			Namespace: sourceReference.Namespace,
+			Name:      sourceReference.Name,
+		}, sourceObject)
+
+		if err != nil {
+			return err
+		}
+
+		sourceObjectJson, err := json.Marshal(sourceObject.Object)
+		if err != nil {
+			return err
+		}
+
+		*resources = append(*resources, string(sourceObjectJson))
+	}
+
+	return err
+}
+
+// addWorkloadResource TODO
+func (r *WorkloadActionReconciler) addWorkloadResource(ctx context.Context, workloadActionManifest *rabbitstalkerv1alpha1.WorkloadAction, resources *[]string) (err error) {
+
+	// Get the target manifest
+	target, err := r.GetWorkloadResource(ctx, workloadActionManifest)
+	if err != nil {
+		return err
+	}
+
+	targetObjectJson, err := json.Marshal(target.Object)
+	if err != nil {
+		return err
+	}
+
+	*resources = append(*resources, string(targetObjectJson))
+
+	return err
+}
+
+// GetSourcesList return a JSON compatible list of objects with the target and the sources TODO
+func (r *WorkloadActionReconciler) GetSourcesList(ctx context.Context, workloadManifest *rabbitstalkerv1alpha1.WorkloadAction) (resources []string, err error) {
+
+	// Fill the resources list with the target
+	err = r.addWorkloadResource(ctx, workloadManifest, &resources)
+	if err != nil {
+		//r.UpdateWorkloadActionCondition(workloadManifest, r.NewWorkloadActionCondition(Con))
+		//r.UpdatePatchCondition(workloadManifest, r.NewPatchCondition(ConditionTypeResourcePatched,
+		//	metav1.ConditionFalse,
+		//	ConditionReasonTargetNotFound,
+		//	ConditionReasonTargetNotFoundMessage,
+		//))
+		return resources, err
+	}
+
+	// Fill the resources list with the sources
+	err = r.addSources(ctx, workloadManifest, &resources)
+	if err != nil {
+		//r.UpdatePatchCondition(patchManifest, r.NewPatchCondition(ConditionTypeResourcePatched,
+		//	metav1.ConditionFalse,
+		//	ConditionReasonSourceNotFound,
+		//	ConditionReasonSourceNotFoundMessage,
+		//))
+	}
+
+	return resources, err
+}
+
+// GetParsedConditionValue TODO
+func (r *WorkloadActionReconciler) GetParsedConditionValue(ctx context.Context, workloadManifest *rabbitstalkerv1alpha1.WorkloadAction) (conditionValue string, err error) {
+	referenceOpeningPattern := `\[\d+\]`
+	openingPattern := `{{`
+	closingPattern := `}}`
+
+	var sourcesJson []string
+	sourcesJson, err = r.GetSourcesList(ctx, workloadManifest)
+	if err != nil {
+		return conditionValue, err
+	}
+
+	// Ignore looping on empty sources
+	if len(sourcesJson) == 0 {
+		return conditionValue, err
+	}
+
+	regexPattern := fmt.Sprintf(`%s%s([\s\S]*?)%s`, referenceOpeningPattern, regexp.QuoteMeta(openingPattern), regexp.QuoteMeta(closingPattern))
+	regex := regexp.MustCompile(regexPattern)
+
+	// Look for potential replacements on condition.value
+	conditionValue = workloadManifest.Spec.Condition.Value
+	matches := regex.FindAllStringSubmatch(conditionValue, -1)
+
+	for _, match := range matches {
+		// Look for the desired source in each replacement
+		srcIndexString := match[0][strings.IndexByte(match[0], '[')+1 : strings.IndexByte(match[0], ']')]
+		srcIndex, err := strconv.Atoi(srcIndexString)
+		if err != nil {
+			// TODO
+			err = errors.New("invalid source index on condition value")
+			return conditionValue, err
+		}
+
+		// Check index is lower than sources length
+		if srcIndex >= len(sourcesJson) {
+			// TODO
+			err = errors.New("invalid index to the sources list")
+			return conditionValue, err
+		}
+
+		match[1] = strings.TrimSpace(match[1])
+
+		parsedValue := gjson.Get(sourcesJson[srcIndex], match[1])
+
+		conditionValue = strings.Replace(conditionValue, match[0], parsedValue.String(), 1)
+	}
+
+	return conditionValue, err
+}
+
 // SetWorkloadRestartAnnotation restart a workload by changing an annotation.
 // This will trigger an automatic reconciliation on the workload in the same way done by kubectl
 func (r *WorkloadActionReconciler) SetWorkloadRestartAnnotation(ctx context.Context, obj *unstructured.Unstructured) (err error) {
@@ -154,9 +284,9 @@ func (r *WorkloadActionReconciler) SetWorkloadRestartAnnotation(ctx context.Cont
 		return err
 	}
 
-	// TODO: Take care about annotations not being present
+	// Take care about annotations not being present
 	if !templateAnnotationsFound || templateAnnotations == nil {
-		// TODO: Craft them. May be they are not important?
+		templateAnnotations = map[string]interface{}{}
 	}
 	templateAnnotations[AnnotationRestartedAt] = time.Now().Format(time.RFC3339)
 
@@ -299,8 +429,19 @@ func (r *WorkloadActionReconciler) reconcileWorkloadAction(ctx context.Context, 
 	}
 
 	//
-	parsedValue := gjson.Get(string(responseBody), workloadActionManifest.Spec.Condition.Key)
-	if parsedValue.String() != workloadActionManifest.Spec.Condition.Value {
+	parsedKey := gjson.Get(string(responseBody), workloadActionManifest.Spec.Condition.Key)
+	parsedValue, err := r.GetParsedConditionValue(ctx, workloadActionManifest)
+	if err != nil {
+		// TODO
+		//r.UpdateWorkloadActionCondition(workloadActionManifest, r.NewWorkloadActionCondition(ConditionTypeWorkloadActionReady,
+		//	metav1.ConditionFalse,
+		//	ConditionReasonHttpResponseNotValid,
+		//	ConditionReasonHttpResponseNotValidMessage,
+		//))
+		return err
+	}
+
+	if parsedKey.String() != parsedValue {
 		return err
 	}
 

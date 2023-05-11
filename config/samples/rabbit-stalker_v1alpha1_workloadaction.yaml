@@ -30,12 +30,25 @@ spec:
           name: testing-secret
           key: RABBITMQ_PASSWORD
 
+  # Additional sources to get information from.
+  # This sources can be used on condition.value
+  sources:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: testing-workload
+      namespace: default
+
   # Condition under the action is executed.
   # The 'key' field admits dot notation, and it's covered by gjson
   # Ref: https://github.com/tidwall/gjson
   condition:
-    key: "test"
-    value: "something"
+    key: |-
+      consumer_details.#(channel_details.node==rabbit@fancy-monk-sample-01).channel_details.node
+
+    # Additional sources can be used here to craft complex values using the following pattern:
+    # [index]{{ gjson }}
+    value: |-
+      [0]{{ metadata.annotations.node }}
 
   # Action to do with the workload when the condition is met
   action: "restart"
