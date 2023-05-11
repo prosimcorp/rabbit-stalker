@@ -281,6 +281,21 @@ field inside the RabbitMQ response. As an example, take the following sample JSO
   ```
 </details>
 
+Simple conditions are fine, so the next example will cover the case where you have 0 (zero) consumers
+and need to restart the application because of zombie processes previously mentioned:
+
+```yaml
+apiVersion: rabbit-stalker.docplanner.com/v1alpha1
+kind: WorkloadAction
+metadata:
+  name: workloadaction-sample
+spec:
+  # ...
+  condition:
+    key: consumers
+    value: "0"
+```
+
 It's even possible to reach values from inside of arrays. But take care with it, the operator
 does not iterate on arrays. Instead, it looks for a specific string to compare the condition. 
 For doing the trick on GJSON, it's possible to set conditions in the way it returns a string as follows:
@@ -322,22 +337,29 @@ spec:
       ["rabbit@fancy-monk-sample-01","rabbit@fancy-monk-sample-03"]
 ```
 
-But simpler conditions are more fine, so the next example will cover the case where you have 0 (zero) consumers
-and need to restart the application because of zombie processes previously mentioned:
+### Running on the cluster
+
+#### Easy way (recommended)
+
+We have designed the deployment of this project to allow remote deployment using Kustomize. This way it is possible
+to use it with a GitOps approach, using tools such as ArgoCD or FluxCD. Just make a Kustomization manifest referencing
+the tag of the version you want to deploy as follows:
 
 ```yaml
-apiVersion: rabbit-stalker.docplanner.com/v1alpha1
-kind: WorkloadAction
-metadata:
-  name: workloadaction-sample
-spec:
-  # ...
-  condition:
-    key: consumers
-    value: "0"
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- https://github.com/docplanner/rabbit-stalker//deploy/?ref=main
 ```
 
-### Running on the cluster
+> Notice you can change `?ref=main` to match some specific release, for example: `?ref=v0.1.0`
+
+#### Hard way
+
+This way is for passionate learners, but not recommended in production (too manual intervention 🛠️).  
+
+Under the hood, this is executing `kubectl apply -f <some-directories>`
+
 1. Install Instances of Custom Resources:
 
 ```sh

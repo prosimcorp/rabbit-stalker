@@ -96,6 +96,16 @@ docker-buildx: test ## Build and push docker image for the manager for cross-pla
 	- docker buildx rm project-v3-builder
 	rm Dockerfile.cross
 
+.PHONY: kustomization-build
+kustomization-build: manifests kustomize kubectl-slice ## Generate the manifests to package them later in the way you want.
+	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
+	rm -rf deploy/*
+	mkdir -p deploy
+	$(KUSTOMIZE) build config/default > deploy/manifests.yaml
+	$(KUBECTL_SLICE) --input-file=deploy/manifests.yaml --output-dir=deploy --template="{{.kind|lower}}/{{.metadata.name|dottodash}}.yaml"
+	@rm deploy/manifests.yaml || true
+	cd deploy && $(KUSTOMIZE) create --autodetect --recursive
+
 ##@ Deployment
 
 ifndef ignore-not-found
@@ -130,6 +140,7 @@ $(LOCALBIN):
 KUSTOMIZE ?= $(LOCALBIN)/kustomize
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
+KUBECTL_SLICE = $(LOCALBIN)/kubectl-slice
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v3.8.7
@@ -155,3 +166,7 @@ $(CONTROLLER_GEN): $(LOCALBIN)
 envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
 $(ENVTEST): $(LOCALBIN)
 	test -s $(LOCALBIN)/setup-envtest || GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
+
+.PHONY: kubectl-slice
+kubectl-slice: ## Download kubectl-slice locally if necessary.
+	test -s $(LOCALBIN)/kubectl-slice || GOBIN=$(LOCALBIN) go install github.com/patrickdappollonio/kubectl-slice@latest

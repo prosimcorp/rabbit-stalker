@@ -2,13 +2,13 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
-    app.kubernetes.io/name: clusterrole
-    app.kubernetes.io/instance: proxy-role
     app.kubernetes.io/component: kube-rbac-proxy
     app.kubernetes.io/created-by: rabbit-stalker
-    app.kubernetes.io/part-of: rabbit-stalker
+    app.kubernetes.io/instance: proxy-role
     app.kubernetes.io/managed-by: kustomize
-  name: proxy-role
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/part-of: rabbit-stalker
+  name: rabbit-stalker-proxy-role
 rules:
 - apiGroups:
   - authentication.k8s.io

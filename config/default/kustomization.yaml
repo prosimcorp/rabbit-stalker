@@ -1,12 +1,12 @@
 # Adds namespace to all resources.
-namespace: rabbit-stalker-2-system
+namespace: rabbit-stalker-system
 
 # Value of this field is prepended to the
 # names of all resources, e.g. a deployment named
 # "wordpress" becomes "alices-wordpress".
 # Note that it should also match with the prefix (text before '-') of the namespace
 # field above.
-namePrefix: rabbit-stalker-2-
+namePrefix: rabbit-stalker-
 
 # Labels to add to all resources and selectors.
 #commonLabels:
