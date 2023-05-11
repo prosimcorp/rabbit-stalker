@@ -337,6 +337,28 @@ spec:
       ["rabbit@fancy-monk-sample-01","rabbit@fancy-monk-sample-03"]
 ```
 
+As a last trick, let's say you need to evaluate a condition where comparing if a number is greater/lower than your value.
+By the moment this operation is not supported by the operator, but we plan to add this feature in a future release. 
+The awesome point is that supporting gjson for conditions is really helpful, so you can craft an equivalent:
+
+ ```yaml
+apiVersion: rabbit-stalker.docplanner.com/v1alpha1
+kind: WorkloadAction
+metadata:
+  name: workloadaction-sample
+spec:
+  # ...
+  condition:
+    
+    # This will return the number ONLY if the number is higher than 8, other way it will return an empty string
+    key: |-
+      consumers|@values|#(>8)
+
+    # What about comparing an empty string against another empty string? Exactly, you will meet the condition.
+    # This means for lower values than 8, the operator will restart the deployment
+    value: ""
+```
+
 ### Running on the cluster
 
 #### Easy way (recommended)

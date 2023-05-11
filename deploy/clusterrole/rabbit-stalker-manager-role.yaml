@@ -5,7 +5,7 @@ metadata:
   name: rabbit-stalker-manager-role
 rules:
 - apiGroups:
-  - ""
+  - '*'
   resources:
   - daemonsets
   - deployments

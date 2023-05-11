@@ -6,7 +6,7 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
-  - ""
+  - '*'
   resources:
   - daemonsets
   - deployments
