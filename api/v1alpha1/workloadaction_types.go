@@ -73,7 +73,7 @@ type WorkloadActionSpec struct {
 	RabbitConnection RabbitConnectionSpec `json:"rabbitConnection"`
 
 	// Sources TODO
-	Sources []corev1.ObjectReference `json:"sources,omitempty"`
+	AdditionalSources []corev1.ObjectReference `json:"sources,omitempty"`
 
 	// Condition represent a key/value pair found in the JSON of the HTTP response
 	Condition ConditionSpec `json:"condition"`

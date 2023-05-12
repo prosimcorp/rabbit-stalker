@@ -123,12 +123,12 @@ func (r *WorkloadActionReconciler) GetWorkloadResource(ctx context.Context, work
 }
 
 // addSources return a list with the content of the extra sources
-func (r *WorkloadActionReconciler) addSources(ctx context.Context, workloadActionManifest *rabbitstalkerv1alpha1.WorkloadAction, resources *[]string) (err error) {
+func (r *WorkloadActionReconciler) addAdditionalSources(ctx context.Context, workloadActionManifest *rabbitstalkerv1alpha1.WorkloadAction, resources *[]string) (err error) {
 
 	// Fill the sources content, one by one
 	sourceObject := &unstructured.Unstructured{}
 
-	for _, sourceReference := range workloadActionManifest.Spec.Sources {
+	for _, sourceReference := range workloadActionManifest.Spec.AdditionalSources {
 		sourceObject.SetGroupVersionKind(sourceReference.GroupVersionKind())
 
 		err = r.Get(ctx, client.ObjectKey{
@@ -186,7 +186,7 @@ func (r *WorkloadActionReconciler) GetSourcesList(ctx context.Context, workloadM
 	}
 
 	// Fill the resources list with the sources
-	err = r.addSources(ctx, workloadManifest, &resources)
+	err = r.addAdditionalSources(ctx, workloadManifest, &resources)
 	if err != nil {
 		//r.UpdatePatchCondition(patchManifest, r.NewPatchCondition(ConditionTypeResourcePatched,
 		//	metav1.ConditionFalse,

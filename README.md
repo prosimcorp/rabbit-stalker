@@ -73,6 +73,14 @@ spec:
           name: testing-secret
           key: RABBITMQ_PASSWORD
 
+  # Additional sources to get information from.
+  # This sources can be used on condition.value
+  additionalSources:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: testing-workload
+      namespace: default
+
   # This is the condition that will trigger the execution of the action.
   # The 'key' field admits dot notation, and it's covered by gjson
   # Ref: https://github.com/tidwall/gjson
@@ -357,6 +365,70 @@ spec:
     # What about comparing an empty string against another empty string? Exactly, you will meet the condition.
     # This means for lower values than 8, the operator will restart the deployment
     value: ""
+```
+
+Until now, we talk about the capabilities of the *key* field, but we can take the *value* field from the internal source 
+list, the list will be composed of the workload resource and the resources defined in *additionalSources* field, all in 
+json format. To take the value from a source you have to define a **search structure** 
+'[<list-index>]{{ <GJSON-expression> }}':
+
+```yaml
+apiVersion: rabbit-stalker.docplanner.com/v1alpha1
+kind: WorkloadAction
+metadata:
+  name: workloadaction-sample
+spec:
+  # ...
+  condition:
+    
+    # string literal example
+    key: rabbit@fancy-monk-sample-01
+
+    # This will take the value from a workload annotation named 'node'
+    value: "[0]{{ metadata.annotations.node }}"
+```
+
+the internal sources list has the workload as its first element (with index 0), the rest of the list will have the 
+elements of *additionalSources* in the same order received.
+
+You can add string literals to the *value* field with the **search structure**, the structure will be replaced by the 
+value found in the source:
+
+```yaml
+apiVersion: rabbit-stalker.docplanner.com/v1alpha1
+kind: WorkloadAction
+metadata:
+  name: workloadaction-sample
+spec:
+  # ...
+  condition:
+    
+    # string literal example
+    key: rabbit@fancy-monk-sample-01
+
+    # This will take the value from another resource in the source list with an annotation named 'node' with value 1
+    # The '[0]{{ metadata.annotations.node }}' string will be replaced before the comparition so the final value will 
+    # be 'rabbit@fancy-monk-sample-01'
+    value: "rabbit@fancy-monk-sample-0[0]{{ metadata.annotations.node }}"
+```
+
+As final feature you can add multiple **search structures** to build the final string:
+
+```yaml
+apiVersion: rabbit-stalker.docplanner.com/v1alpha1
+kind: WorkloadAction
+metadata:
+  name: workloadaction-sample
+spec:
+  # ...
+  condition:
+    
+    # string literal example
+    key: rabbit@fancy-monk-sample-03
+
+    # This will take the value from multiples sources in the source list
+    # The final value will be 'rabbit@fancy-monk-sample-03' for example
+    value: "rabbit@[1]{{ cluster.name }}-0[0]{{ metadata.annotations.node }}"
 ```
 
 ### Running on the cluster
