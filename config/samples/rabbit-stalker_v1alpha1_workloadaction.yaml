@@ -17,6 +17,7 @@ spec:
     url: "https://your-server.rmq.cloudamqp.com"
     vhost: "shared"
     queue: "your-queue-here"
+    useRegex: true
 
     # (Optional) Credentials to authenticate against endpoint.
     # If set, both are required

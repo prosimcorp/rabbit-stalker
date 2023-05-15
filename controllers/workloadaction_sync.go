@@ -7,6 +7,7 @@ import (
 	"github.com/pkg/errors"
 	"io"
 	"k8s.io/apimachinery/pkg/types"
+	"log"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -25,9 +26,18 @@ import (
 )
 
 const (
+	// RabbitAdminApiQueuesEndpoint TODO
+	// The endpoint structure looks like this: /api/queues/vhost
+	RabbitAdminApiQueuesEndpoint = "/api/queues/%s"
+
 	// RabbitAdminApiQueueEndpoint TODO
 	// The endpoint structure looks like this: /api/queues/vhost/name
-	RabbitAdminApiQueueEndpoint = "/api/queues/%s/%s"
+	//RabbitAdminApiQueueEndpoint = "/api/queues/%s/%s"
+
+	// Parameters related to RabbitMQ Admin API paginated endpoints
+	StartingPageDefaultValue = 1
+	PageSizeDefaultValue     = 5
+	UseRegexDefaultValue     = true
 
 	// TODO
 	HttpHeaderAccept   = "application/json"
@@ -43,6 +53,7 @@ const (
 	PausedWorkloadRestartErrorMessage         = "can't restart paused deployment (run rollout resume first)"
 	WorkloadActionAnnotationPatchErrorMessage = "impossible to patch the annotations for the workload template: %s"
 	UnauthorizedRequestErrorMessage           = "unauthorized request against the connection. Set the credentials for this server"
+	UnsuccessfulRequestErrorMessage           = "unsuccessful request: %d"
 	InvalidJsonErrorMessage                   = "invalid json from the HTTP response"
 	InvalidActionErrorMessage                 = "invalid action. supported: restart, delete"
 	DeleteActionNotImplementedErrorMessage    = "deletion action is not implemented yet"
@@ -56,6 +67,26 @@ const (
 	ActionDelete  = "delete"
 	ActionRestart = "restart"
 )
+
+// HttpRequestAuth represents authentication params provided to a request
+// TODO Move wherever it's better than here
+type HttpRequestAuth struct {
+	Username string
+	Password string
+	Token    string
+}
+
+// RabbitPaginatedResponse represents a response from an endpoint with pagination params
+// TODO Move wherever it's better than here
+type RabbitPaginatedResponse struct {
+	FilteredCount int           `json:"filtered_count"`
+	ItemCount     int           `json:"item_count"`
+	Items         []interface{} `json:"items"`
+	Page          int           `json:"page"`
+	PageCount     int           `json:"page_count"`
+	PageSize      int           `json:"page_size"`
+	TotalCount    int           `json:"total_count"`
+}
 
 // GetSynchronizationTime return the spec.synchronization.time as duration, or default time on failures
 func (r *WorkloadActionReconciler) GetSynchronizationTime(workloadActionManifest *rabbitstalkerv1alpha1.WorkloadAction) (synchronizationTime time.Duration, err error) {
@@ -122,7 +153,7 @@ func (r *WorkloadActionReconciler) GetWorkloadResource(ctx context.Context, work
 	return resource, err
 }
 
-// addWorkloadResource TODO
+// addWorkloadResource add WorkloadRef referenced resource to the sources list
 func (r *WorkloadActionReconciler) addWorkloadResource(ctx context.Context, workloadActionManifest *rabbitstalkerv1alpha1.WorkloadAction, resources *[]string) (err error) {
 
 	// Get the target manifest
@@ -137,7 +168,6 @@ func (r *WorkloadActionReconciler) addWorkloadResource(ctx context.Context, work
 	}
 
 	*resources = append(*resources, string(targetObjectJson))
-
 	return err
 }
 
@@ -294,10 +324,153 @@ func (r *WorkloadActionReconciler) SetWorkloadRestartAnnotation(ctx context.Cont
 	return err
 }
 
-// WorkloadActionTarget call Kubernetes API to actually workloadAction the resource
+// getHttpContent execute a request against a server and return the response in bytes
+func (r *WorkloadActionReconciler) getHttpContent(url string, auth HttpRequestAuth) (statusCode int, responseBytes []byte, err error) {
+
+	httpClient := http.Client{Timeout: HttpRequestTimeout}
+
+	request, err := http.NewRequest(http.MethodGet, url, http.NoBody)
+	if err != nil {
+		return statusCode, responseBytes, err
+	}
+
+	request.Header.Add("Accept", HttpHeaderAccept)
+
+	if len(auth.Username) != 0 && len(auth.Password) != 0 {
+		request.SetBasicAuth(auth.Username, auth.Password)
+	}
+
+	response, err := httpClient.Do(request)
+	if err != nil {
+		return response.StatusCode, responseBytes, err
+	}
+
+	defer response.Body.Close()
+
+	if response.StatusCode == http.StatusUnauthorized {
+		err = errors.New(UnauthorizedRequestErrorMessage)
+		//r.UpdateWorkloadActionCondition(workloadActionManifest, r.NewWorkloadActionCondition(ConditionTypeWorkloadActionReady,
+		//	metav1.ConditionFalse,
+		//	ConditionReasonCredentialsNotValid,
+		//	ConditionReasonCredentialsNotValidMessage,
+		//))
+		return response.StatusCode, responseBytes, err
+	}
+
+	if response.StatusCode != http.StatusOK {
+		err = errors.New(fmt.Sprintf(UnsuccessfulRequestErrorMessage, response.StatusCode))
+		return response.StatusCode, responseBytes, err
+	}
+
+	responseBytes, err = io.ReadAll(response.Body)
+	if err != nil {
+		return response.StatusCode, responseBytes, err
+	}
+
+	return response.StatusCode, responseBytes, err
+}
+
+// GetQueueFromSimpleResponse TODO
+func (r *WorkloadActionReconciler) GetQueueFromSimpleResponse(parsedUrl *url.URL, requestAuth HttpRequestAuth) (queuePool [][]byte, err error) {
+
+	var statusCode int
+	var responseBody []byte
+
+	//
+	regexParsedUrlQuery := parsedUrl.Query()
+	regexParsedUrlQuery.Set("page", strconv.Itoa(StartingPageDefaultValue))
+	parsedUrl.RawQuery = regexParsedUrlQuery.Encode()
+
+	// Get the content of one page
+	statusCode, responseBody, err = r.getHttpContent(parsedUrl.String(), requestAuth)
+	if err != nil {
+		return queuePool, err
+	}
+
+	// TODO Decide what to do with the statusCode and the StatusCondition
+	_ = statusCode
+
+	// Add item to queuePool
+	queuePool = append(queuePool, responseBody)
+
+	return queuePool, err
+}
+
+// GetQueuesFromPaginatedResponse TODO
+func (r *WorkloadActionReconciler) GetQueuesFromPaginatedResponse(parsedUrl *url.URL, requestAuth HttpRequestAuth) (queuePool [][]byte, err error) {
+
+	var statusCode int
+	var responseBody []byte
+	CurrentPage := StartingPageDefaultValue
+
+	//
+	regexParsedUrlQuery := parsedUrl.Query()
+	regexParsedUrlQuery.Set("page", strconv.Itoa(StartingPageDefaultValue))
+	parsedUrl.RawQuery = regexParsedUrlQuery.Encode()
+
+	// Get the queues information from all the pages
+	for {
+		// Get the content of one page
+		statusCode, responseBody, err = r.getHttpContent(parsedUrl.String(), requestAuth)
+		if err != nil {
+			return queuePool, err
+		}
+
+		// TODO Decide what to do with the statusCode and the StatusCondition
+		_ = statusCode
+
+		// Transform response into Go well-known struct
+		data := RabbitPaginatedResponse{}
+		err := json.Unmarshal(responseBody, &data)
+		if err != nil {
+			return queuePool, err
+		}
+
+		// No items, don't waste compute resources processing
+		if data.ItemCount == 0 {
+			break
+		}
+
+		// Add page's items to queuePool
+		for _, item := range data.Items {
+			itemBytes, err := json.Marshal(item)
+			if err != nil {
+				log.Print("Algo fue mal cambiándolo a JSON, ignore it") // TODO
+				continue
+			}
+			queuePool = append(queuePool, itemBytes)
+		}
+
+		// Last page or no items. Exit
+		if CurrentPage >= data.PageCount || data.ItemCount == 0 {
+			break
+		}
+
+		// Items pending. Request them
+		CurrentPage++
+		temporaryParsedUrl := parsedUrl.Query()
+		temporaryParsedUrl.Set("page", strconv.Itoa(CurrentPage))
+		parsedUrl.RawQuery = temporaryParsedUrl.Encode()
+	}
+
+	return queuePool, err
+}
+
+// reconcileWorkloadAction call Kubernetes API to actually workloadAction the resource
 func (r *WorkloadActionReconciler) reconcileWorkloadAction(ctx context.Context, workloadActionManifest *rabbitstalkerv1alpha1.WorkloadAction) (err error) {
 
-	// 1. Look for the Secret resources only when credentials refs are set in WorkloadAction
+	// 1. Get the workload object
+	targetObject, err := r.GetWorkloadResource(ctx, workloadActionManifest)
+	if err != nil {
+		r.UpdateWorkloadActionCondition(workloadActionManifest, r.NewWorkloadActionCondition(ConditionTypeWorkloadActionReady,
+			metav1.ConditionFalse,
+			ConditionReasonWorkloadNotFound,
+			ConditionReasonWorkloadNotFoundMessage,
+		))
+		return err
+	}
+
+	// 2. Look for the Secret resources only when credentials refs are set in WorkloadAction
 	var credentialsObjects []*corev1.Secret
 
 	if !reflect.ValueOf(workloadActionManifest.Spec.RabbitConnection.Credentials).IsZero() {
@@ -312,7 +485,7 @@ func (r *WorkloadActionReconciler) reconcileWorkloadAction(ctx context.Context, 
 		}
 	}
 
-	// 2. Fill the credentials only when the Secret resources where extracted
+	// 3. Fill the credentials only when the Secret resources where extracted
 	var username, password []byte
 	var usernameFound, passwordFound bool
 
@@ -329,22 +502,20 @@ func (r *WorkloadActionReconciler) reconcileWorkloadAction(ctx context.Context, 
 		}
 	}
 
-	// 3. Get the workload object
-	targetObject, err := r.GetWorkloadResource(ctx, workloadActionManifest)
-	if err != nil {
-		r.UpdateWorkloadActionCondition(workloadActionManifest, r.NewWorkloadActionCondition(ConditionTypeWorkloadActionReady,
-			metav1.ConditionFalse,
-			ConditionReasonWorkloadNotFound,
-			ConditionReasonWorkloadNotFoundMessage,
-		))
-		return err
+	requestAuth := HttpRequestAuth{
+		Username: string(username),
+		Password: string(password),
 	}
 
-	// 4. Get the params for the HTTP request
+	// 4. Configure the URL and params for the HTTP request
+	// Set request URL depending on literal or regex
 	urlString := workloadActionManifest.Spec.RabbitConnection.Url
-	urlString += fmt.Sprintf(RabbitAdminApiQueueEndpoint,
-		workloadActionManifest.Spec.RabbitConnection.Vhost,
-		workloadActionManifest.Spec.RabbitConnection.Queue)
+	urlString += fmt.Sprintf(RabbitAdminApiQueuesEndpoint,
+		workloadActionManifest.Spec.RabbitConnection.Vhost)
+
+	if !workloadActionManifest.Spec.RabbitConnection.UseRegex {
+		urlString += "/" + workloadActionManifest.Spec.RabbitConnection.Queue
+	}
 
 	parsedUrl, err := url.Parse(urlString)
 	if err != nil {
@@ -356,70 +527,33 @@ func (r *WorkloadActionReconciler) reconcileWorkloadAction(ctx context.Context, 
 		return err
 	}
 
+	// Set initial query params for paginated requests when needed
+	if workloadActionManifest.Spec.RabbitConnection.UseRegex {
+		regexParsedUrlQuery := parsedUrl.Query()
+		regexParsedUrlQuery.Set("page", strconv.Itoa(StartingPageDefaultValue))
+		regexParsedUrlQuery.Set("page_size", strconv.Itoa(PageSizeDefaultValue))
+		regexParsedUrlQuery.Set("name", workloadActionManifest.Spec.RabbitConnection.Queue)
+		regexParsedUrlQuery.Set("use_regex", strconv.FormatBool(UseRegexDefaultValue))
+		parsedUrl.RawQuery = regexParsedUrlQuery.Encode()
+	}
+
 	// 5. Make the HTTP request to the RabbitMQ admin API
-	// TODO: Move whole step 4) to a function
-	httpClient := http.Client{Timeout: HttpRequestTimeout}
+	var queuePool [][]byte
 
-	request, err := http.NewRequest(http.MethodGet, parsedUrl.String(), http.NoBody)
+	if workloadActionManifest.Spec.RabbitConnection.UseRegex {
+		queuePool, err = r.GetQueuesFromPaginatedResponse(parsedUrl, requestAuth)
+	} else {
+		queuePool, err = r.GetQueueFromSimpleResponse(parsedUrl, requestAuth)
+	}
 	if err != nil {
-		r.UpdateWorkloadActionCondition(workloadActionManifest, r.NewWorkloadActionCondition(ConditionTypeWorkloadActionReady,
-			metav1.ConditionFalse,
-			ConditionReasonHttpRequestExecutionFailed,
-			ConditionReasonHttpRequestExecutionFailedMessage,
-		))
+		// TODO Write a statusCondition for this
+		log.Print("Something went wrong when getting the results from the API")
 		return err
 	}
 
-	request.Header.Add("Accept", HttpHeaderAccept)
-	request.SetBasicAuth(string(username), string(password))
-
-	response, err := httpClient.Do(request)
-	if err != nil {
-		r.UpdateWorkloadActionCondition(workloadActionManifest, r.NewWorkloadActionCondition(ConditionTypeWorkloadActionReady,
-			metav1.ConditionFalse,
-			ConditionReasonHttpRequestExecutionFailed,
-			ConditionReasonHttpRequestExecutionFailedMessage,
-		))
-		return err
-	}
-	defer response.Body.Close()
-
-	if response.StatusCode == http.StatusUnauthorized {
-		r.UpdateWorkloadActionCondition(workloadActionManifest, r.NewWorkloadActionCondition(ConditionTypeWorkloadActionReady,
-			metav1.ConditionFalse,
-			ConditionReasonCredentialsNotValid,
-			ConditionReasonCredentialsNotValidMessage,
-		))
-		err = errors.New(UnauthorizedRequestErrorMessage)
-		return err
-	}
-
-	responseBody, err := io.ReadAll(response.Body)
-	if err != nil {
-		r.UpdateWorkloadActionCondition(workloadActionManifest, r.NewWorkloadActionCondition(ConditionTypeWorkloadActionReady,
-			metav1.ConditionFalse,
-			ConditionReasonHttpRequestExecutionFailed,
-			ConditionReasonHttpRequestExecutionFailedMessage,
-		))
-		return err
-	}
-
-	// 6. Evaluate the condition to execute an action
-	// Ref: https://gjson.dev/
-	if !gjson.Valid(string(responseBody)) {
-		err = errors.New(InvalidJsonErrorMessage)
-		r.UpdateWorkloadActionCondition(workloadActionManifest, r.NewWorkloadActionCondition(ConditionTypeWorkloadActionReady,
-			metav1.ConditionFalse,
-			ConditionReasonHttpResponseNotValid,
-			ConditionReasonHttpResponseNotValidMessage,
-		))
-		return err
-	}
-
-	//
-	parsedKey := gjson.Get(string(responseBody), workloadActionManifest.Spec.Condition.Key)
+	// 6. Evaluate the condition to execute an action.
+	// The condition.value is computed first as it's computed only once.
 	parsedValue, err := r.GetParsedConditionValue(ctx, workloadActionManifest)
-
 	if err != nil {
 		r.UpdateWorkloadActionCondition(workloadActionManifest, r.NewWorkloadActionCondition(ConditionTypeWorkloadActionReady,
 			metav1.ConditionFalse,
@@ -429,8 +563,40 @@ func (r *WorkloadActionReconciler) reconcileWorkloadAction(ctx context.Context, 
 		return err
 	}
 
-	if parsedKey.String() != parsedValue {
-		return err
+	// We allow regex for the queue.name. That means there could be different results on condition.key for each queue.
+	// because of that, we need to compare them all against condition.value, one by one
+	for queueItemIndex, queueItem := range queuePool {
+
+		// Ref: https://gjson.dev/
+		if !gjson.Valid(string(queueItem)) {
+			err = errors.New(InvalidJsonErrorMessage)
+			r.UpdateWorkloadActionCondition(workloadActionManifest, r.NewWorkloadActionCondition(ConditionTypeWorkloadActionReady,
+				metav1.ConditionFalse,
+				ConditionReasonHttpResponseNotValid,
+				ConditionReasonHttpResponseNotValidMessage,
+			))
+			return err
+		}
+
+		//
+		parsedKey := gjson.GetBytes(queueItem, workloadActionManifest.Spec.Condition.Key)
+
+		// Condition is met for some item. Go to action's execution
+		//log.Print("LOS VALORES:")
+		//log.Print(parsedKey.String())
+		//log.Print(parsedValue)
+		//log.Println("---")
+		if parsedKey.String() == parsedValue {
+			break
+		}
+
+		// Last loop. Condition was not met. Return without execution
+		if len(queuePool) == queueItemIndex+1 {
+			//log.Print("ULTIMA VUELTA SIN COINCIDENCIAS")
+			return err
+		}
+
+		time.Sleep(10 * time.Second) // TODO DEBUG ONLY
 	}
 
 	// 7. Condition is met. Execute the action
