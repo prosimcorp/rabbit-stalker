@@ -367,10 +367,15 @@ spec:
     value: ""
 ```
 
-Until now, we talk about the capabilities of the *key* field, but we can take the *value* field from the internal source 
-list, the list will be composed of the workload resource and the resources defined in *additionalSources* field, all in 
-json format. To take the value from a source you have to define a **search structure** 
-'[<list-index>]{{ <GJSON-expression> }}':
+Until now, we have talked about the capabilities of the field `condition.key`, but `condition.value` is really 
+powerful too. If `additionalSources` is filled, the content of these sources is available to craft complex values.
+All you need to do, is to use the pattern `[<list-index>]{{ <GJSON-expression> }}` inside the `condition.value` field
+to use some value coming from a source.
+
+> Hey! Sources is a list composed by `workloadRef` + `additionalSources`. This means position [0] is reserved for 
+> the target workload and higher positions starting from [1] will be filled with additionalSources
+
+Let's see an example:
 
 ```yaml
 apiVersion: rabbit-stalker.docplanner.com/v1alpha1
@@ -384,15 +389,12 @@ spec:
     # string literal example
     key: rabbit@fancy-monk-sample-01
 
-    # This will take the value from a workload annotation named 'node'
+    # This will take the value of an annotation named 'node' coming from workloadRef object
     value: "[0]{{ metadata.annotations.node }}"
 ```
 
-the internal sources list has the workload as its first element (with index 0), the rest of the list will have the 
-elements of *additionalSources* in the same order received.
-
-You can add string literals to the *value* field with the **search structure**, the structure will be replaced by the 
-value found in the source:
+You can craft a value adding some string literals at any side of the pattern used to search. The structure will be 
+replaced by the value found in the source:
 
 ```yaml
 apiVersion: rabbit-stalker.docplanner.com/v1alpha1
@@ -406,13 +408,14 @@ spec:
     # string literal example
     key: rabbit@fancy-monk-sample-01
 
-    # This will take the value from another resource in the source list with an annotation named 'node' with value 1
-    # The '[0]{{ metadata.annotations.node }}' string will be replaced before the comparition so the final value will 
+    # This will take the value of an annotation named 'node' coming from the resource in first position at sources list.
+    # Imagine the value for this annotation is '1'
+    # The '[0]{{ metadata.annotations.node }}' string will be replaced before the comparison, so the final value will 
     # be 'rabbit@fancy-monk-sample-01'
     value: "rabbit@fancy-monk-sample-0[0]{{ metadata.annotations.node }}"
 ```
 
-As final feature you can add multiple **search structures** to build the final string:
+As final feature you can use the patterns as many times as needed to build the final string:
 
 ```yaml
 apiVersion: rabbit-stalker.docplanner.com/v1alpha1
