@@ -36,6 +36,10 @@ const (
 	ConditionReasonInvalidAction        = "InvalidAction"
 	ConditionReasonInvalidActionMessage = "Action is invalid"
 
+	// Condition value parsing failed
+	ConditionReasonConditionValueParsingFailed        = "ConditionValueParsingFailed"
+	ConditionReasonConditionValueParsingFailedMessage = "Condition value parsing process failed"
+
 	// Action execution failed
 	ConditionReasonActionExecutionFailed        = "ActionExecutionFailed"
 	ConditionReasonActionExecutionFailedMessage = "Action failed during execution"

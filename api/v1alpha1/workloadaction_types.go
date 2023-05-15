@@ -72,6 +72,9 @@ type WorkloadActionSpec struct {
 	// RabbitConnection represents the connection settings to connect with RabbitMQ admin API
 	RabbitConnection RabbitConnectionSpec `json:"rabbitConnection"`
 
+	// AdditionalSources represent references to Kubernetes resources that whill be available on condition.value
+	AdditionalSources []corev1.ObjectReference `json:"additionalSources,omitempty"`
+
 	// Condition represent a key/value pair found in the JSON of the HTTP response
 	Condition ConditionSpec `json:"condition"`
 

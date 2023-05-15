@@ -22,7 +22,8 @@ limitations under the License.
 package v1alpha1
 
 import (
-	"k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -125,7 +126,7 @@ func (in *WorkloadAction) DeepCopyInto(out *WorkloadAction) {
 	*out = *in
 	out.TypeMeta = in.TypeMeta
 	in.ObjectMeta.DeepCopyInto(&out.ObjectMeta)
-	out.Spec = in.Spec
+	in.Spec.DeepCopyInto(&out.Spec)
 	in.Status.DeepCopyInto(&out.Status)
 }
 
@@ -184,6 +185,11 @@ func (in *WorkloadActionSpec) DeepCopyInto(out *WorkloadActionSpec) {
 	*out = *in
 	out.Synchronization = in.Synchronization
 	out.RabbitConnection = in.RabbitConnection
+	if in.AdditionalSources != nil {
+		in, out := &in.AdditionalSources, &out.AdditionalSources
+		*out = make([]v1.ObjectReference, len(*in))
+		copy(*out, *in)
+	}
 	out.Condition = in.Condition
 	out.WorkloadRef = in.WorkloadRef
 }
@@ -203,7 +209,7 @@ func (in *WorkloadActionStatus) DeepCopyInto(out *WorkloadActionStatus) {
 	*out = *in
 	if in.Conditions != nil {
 		in, out := &in.Conditions, &out.Conditions
-		*out = make([]v1.Condition, len(*in))
+		*out = make([]metav1.Condition, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
