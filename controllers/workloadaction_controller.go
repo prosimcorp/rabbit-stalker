@@ -114,8 +114,9 @@ func (r *WorkloadActionReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	defer func() {
 		err = r.Status().Update(ctx, workloadActionManifest)
 		if err != nil {
-			LogInfof(ctx, workloadActionConditionUpdateError, req.Name)
+			LogInfof(ctx, workloadActionConditionUpdateError, err)
 		}
+		err = nil
 	}()
 
 	// 6. Schedule periodical request
@@ -125,6 +126,7 @@ func (r *WorkloadActionReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return result, err
 	}
 	result = ctrl.Result{
+		Requeue:      true,
 		RequeueAfter: RequeueTime,
 	}
 

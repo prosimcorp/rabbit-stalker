@@ -68,7 +68,7 @@ func (r *WorkloadActionReconciler) GetSynchronizationTime(workloadActionManifest
 	return synchronizationTime, err
 }
 
-// GetSecretResource TODO
+// GetSecretResource call Kubernetes API to return an arbitrary Secret object
 func (r *WorkloadActionReconciler) GetSecretResource(ctx context.Context, namespace string, name string) (secret *corev1.Secret, err error) {
 
 	secretResource := corev1.Secret{}
@@ -82,7 +82,7 @@ func (r *WorkloadActionReconciler) GetSecretResource(ctx context.Context, namesp
 	return secret, err
 }
 
-// GetCredentialsResources TODO
+// GetCredentialsResources call Kubernetes API to return the Secret objects for the HTTP request authentication
 func (r *WorkloadActionReconciler) GetCredentialsResources(ctx context.Context, workloadActionManifest *rabbitstalkerv1alpha1.WorkloadAction) (resources []*corev1.Secret, err error) {
 
 	usernameSecret := &corev1.Secret{}
@@ -106,7 +106,7 @@ func (r *WorkloadActionReconciler) GetCredentialsResources(ctx context.Context, 
 	return resources, err
 }
 
-// GetWorkloadResource TODO
+// GetWorkloadResource call Kubernetes API to return the WorkloadResource object
 func (r *WorkloadActionReconciler) GetWorkloadResource(ctx context.Context, workloadActionManifest *rabbitstalkerv1alpha1.WorkloadAction) (resource *unstructured.Unstructured, err error) {
 
 	// Get the target manifest
@@ -122,7 +122,26 @@ func (r *WorkloadActionReconciler) GetWorkloadResource(ctx context.Context, work
 	return resource, err
 }
 
-// addSources return a list with the content of the extra sources
+// addWorkloadResource TODO
+func (r *WorkloadActionReconciler) addWorkloadResource(ctx context.Context, workloadActionManifest *rabbitstalkerv1alpha1.WorkloadAction, resources *[]string) (err error) {
+
+	// Get the target manifest
+	target, err := r.GetWorkloadResource(ctx, workloadActionManifest)
+	if err != nil {
+		return err
+	}
+
+	targetObjectJson, err := json.Marshal(target.Object)
+	if err != nil {
+		return err
+	}
+
+	*resources = append(*resources, string(targetObjectJson))
+
+	return err
+}
+
+// addAdditionalSources add additionalSources objects into the sources list
 func (r *WorkloadActionReconciler) addAdditionalSources(ctx context.Context, workloadActionManifest *rabbitstalkerv1alpha1.WorkloadAction, resources *[]string) (err error) {
 
 	// Fill the sources content, one by one
@@ -151,54 +170,25 @@ func (r *WorkloadActionReconciler) addAdditionalSources(ctx context.Context, wor
 	return err
 }
 
-// addWorkloadResource TODO
-func (r *WorkloadActionReconciler) addWorkloadResource(ctx context.Context, workloadActionManifest *rabbitstalkerv1alpha1.WorkloadAction, resources *[]string) (err error) {
-
-	// Get the target manifest
-	target, err := r.GetWorkloadResource(ctx, workloadActionManifest)
-	if err != nil {
-		return err
-	}
-
-	targetObjectJson, err := json.Marshal(target.Object)
-	if err != nil {
-		return err
-	}
-
-	*resources = append(*resources, string(targetObjectJson))
-
-	return err
-}
-
-// GetSourcesList return a JSON compatible list of objects with the target and the sources TODO
+// GetSourcesList return a JSON compatible list of objects with the target as first item, and the additionalSources after it
 func (r *WorkloadActionReconciler) GetSourcesList(ctx context.Context, workloadManifest *rabbitstalkerv1alpha1.WorkloadAction) (resources []string, err error) {
 
 	// Fill the resources list with the target
 	err = r.addWorkloadResource(ctx, workloadManifest, &resources)
 	if err != nil {
-		//r.UpdateWorkloadActionCondition(workloadManifest, r.NewWorkloadActionCondition(Con))
-		//r.UpdatePatchCondition(workloadManifest, r.NewPatchCondition(ConditionTypeResourcePatched,
-		//	metav1.ConditionFalse,
-		//	ConditionReasonTargetNotFound,
-		//	ConditionReasonTargetNotFoundMessage,
-		//))
 		return resources, err
 	}
 
 	// Fill the resources list with the sources
 	err = r.addAdditionalSources(ctx, workloadManifest, &resources)
 	if err != nil {
-		//r.UpdatePatchCondition(patchManifest, r.NewPatchCondition(ConditionTypeResourcePatched,
-		//	metav1.ConditionFalse,
-		//	ConditionReasonSourceNotFound,
-		//	ConditionReasonSourceNotFoundMessage,
-		//))
+		return resources, err
 	}
 
 	return resources, err
 }
 
-// GetParsedConditionValue TODO
+// GetParsedConditionValue return condition's value field with all substitutions already done
 func (r *WorkloadActionReconciler) GetParsedConditionValue(ctx context.Context, workloadManifest *rabbitstalkerv1alpha1.WorkloadAction) (conditionValue string, err error) {
 	referenceOpeningPattern := `\[\d+\]`
 	openingPattern := `{{`
@@ -227,14 +217,12 @@ func (r *WorkloadActionReconciler) GetParsedConditionValue(ctx context.Context, 
 		srcIndexString := match[0][strings.IndexByte(match[0], '[')+1 : strings.IndexByte(match[0], ']')]
 		srcIndex, err := strconv.Atoi(srcIndexString)
 		if err != nil {
-			// TODO
 			err = errors.New("invalid source index on condition value")
 			return conditionValue, err
 		}
 
 		// Check index is lower than sources length
 		if srcIndex >= len(sourcesJson) {
-			// TODO
 			err = errors.New("invalid index to the sources list")
 			return conditionValue, err
 		}
@@ -431,13 +419,13 @@ func (r *WorkloadActionReconciler) reconcileWorkloadAction(ctx context.Context, 
 	//
 	parsedKey := gjson.Get(string(responseBody), workloadActionManifest.Spec.Condition.Key)
 	parsedValue, err := r.GetParsedConditionValue(ctx, workloadActionManifest)
+
 	if err != nil {
-		// TODO
-		//r.UpdateWorkloadActionCondition(workloadActionManifest, r.NewWorkloadActionCondition(ConditionTypeWorkloadActionReady,
-		//	metav1.ConditionFalse,
-		//	ConditionReasonHttpResponseNotValid,
-		//	ConditionReasonHttpResponseNotValidMessage,
-		//))
+		r.UpdateWorkloadActionCondition(workloadActionManifest, r.NewWorkloadActionCondition(ConditionTypeWorkloadActionReady,
+			metav1.ConditionFalse,
+			ConditionReasonConditionValueParsingFailed,
+			ConditionReasonConditionValueParsingFailedMessage,
+		))
 		return err
 	}
 

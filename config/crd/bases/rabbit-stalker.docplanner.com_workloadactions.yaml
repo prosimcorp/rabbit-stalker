@@ -137,7 +137,8 @@ spec:
                 - vhost
                 type: object
               sources:
-                description: Sources TODO
+                description: AdditionalSources represent references to Kubernetes
+                  resources that whill be available on condition.value
                 items:
                   description: "ObjectReference contains enough information to let
                     you inspect or modify the referred object. --- New uses of this
