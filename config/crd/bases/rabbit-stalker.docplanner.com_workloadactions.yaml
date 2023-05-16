@@ -194,6 +194,8 @@ spec:
                     type: string
                   url:
                     type: string
+                  useRegex:
+                    type: boolean
                   vhost:
                     type: string
                 required:

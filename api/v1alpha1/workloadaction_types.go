@@ -51,6 +51,7 @@ type RabbitConnectionSpec struct {
 	Url         string                          `json:"url"`
 	Vhost       string                          `json:"vhost"`
 	Queue       string                          `json:"queue"`
+	UseRegex    bool                            `json:"useRegex,omitempty"`
 	Credentials RabbitConnectionCredentialsSpec `json:"credentials,omitempty"`
 }
 

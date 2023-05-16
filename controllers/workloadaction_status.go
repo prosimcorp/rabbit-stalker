@@ -5,11 +5,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// https://github.com/external-secrets/external-secrets/blob/80545f4f183795ef193747fc959558c761b51c99/apis/externalsecrets/v1alpha1/externalsecret_types.go#L168
 const (
 
 	//
-	// ConditionTypeWorkloadActionReady indicates that the WorkloadActione is ready to act or not
+	// ConditionTypeWorkloadActionReady indicates that the WorkloadAction is ready to act or not
 	ConditionTypeWorkloadActionReady = "WorkloadActionReady"
 
 	// Credentials not found
@@ -17,12 +16,16 @@ const (
 	ConditionReasonCredentialsNotFoundMessage = "Credentials secret or key not found"
 
 	// Credentials not valid
-	ConditionReasonCredentialsNotValid        = "CredentialsNotValid"
-	ConditionReasonCredentialsNotValidMessage = "Credentials does not allow authenticate"
+	//ConditionReasonCredentialsNotValid        = "CredentialsNotValid"
+	//ConditionReasonCredentialsNotValidMessage = "Credentials does not allow to authenticate"
 
-	// HTTPRequest execution failed
-	ConditionReasonHttpRequestExecutionFailed        = "HttpRequestExecutionFailed"
-	ConditionReasonHttpRequestExecutionFailedMessage = "Http request failed on execution"
+	// HTTPRequest failed
+	ConditionReasonUrlParsingFailed        = "UrlParsingFailed"
+	ConditionReasonUrlParsingFailedMessage = "Url parsing failed. Fix its syntax and try again"
+
+	// HTTPResponse not successful
+	ConditionReasonHttpResponseNotSuccessful        = "HttpRequestNotSuccessful"
+	ConditionReasonHttpResponseNotSuccessfulMessage = "Http request returned status code: %d"
 
 	// HTTPResponse not valid
 	ConditionReasonHttpResponseNotValid        = "HttpResponseNotValid"

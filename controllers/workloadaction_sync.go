@@ -1,461 +1,606 @@
 package controllers
 
 import (
-	"context"
-	"encoding/json"
-	"fmt"
-	"github.com/pkg/errors"
-	"io"
-	"k8s.io/apimachinery/pkg/types"
-	"net/http"
-	"net/url"
-	"reflect"
-	"regexp"
-	"strconv"
-	"strings"
-	"time"
+    "context"
+    "encoding/json"
+    "fmt"
+    "github.com/pkg/errors"
+    "io"
+    "k8s.io/apimachinery/pkg/types"
+    "net/http"
+    "net/url"
+    "reflect"
+    "regexp"
+    "strconv"
+    "strings"
+    "time"
 
-	rabbitstalkerv1alpha1 "docplanner.com/rabbit-stalker/api/v1alpha1"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+    rabbitstalkerv1alpha1 "docplanner.com/rabbit-stalker/api/v1alpha1"
+    corev1 "k8s.io/api/core/v1"
+    metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+    "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+    "sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/tidwall/gjson"
+    "github.com/tidwall/gjson"
 )
 
 const (
-	// RabbitAdminApiQueueEndpoint TODO
-	// The endpoint structure looks like this: /api/queues/vhost/name
-	RabbitAdminApiQueueEndpoint = "/api/queues/%s/%s"
+    // RabbitAdminApiQueuesEndpoint TODO
+    // The endpoint structure looks like this: /api/queues/vhost
+    RabbitAdminApiQueuesEndpoint = "/api/queues/%s"
 
-	// TODO
-	HttpHeaderAccept   = "application/json"
-	HttpRequestTimeout = 5 * time.Second
+    // RabbitAdminApiQueueEndpoint TODO
+    // The endpoint structure looks like this: /api/queues/vhost/name
+    //RabbitAdminApiQueueEndpoint = "/api/queues/%s/%s"
 
-	// TODO
-	AnnotationRestartedAt = "rabbit-stalker.docplanner.com/restartedAt"
+    // Parameters related to RabbitMQ Admin API paginated endpoints
+    StartingPageDefaultValue = 1
+    PageSizeDefaultValue     = 5
+    UseRegexDefaultValue     = true
 
-	// parseSyncTimeError error message for invalid value on 'synchronization' parameter
-	parseSyncTimeError = "Can not parse the synchronization time from workloadAction: %s"
+    // TODO
+    HttpHeaderAccept   = "application/json"
+    HttpRequestTimeout = 5 * time.Second
 
-	WorkloadRestartNotSupportedErrorMessage   = "restarting is not supported"
-	PausedWorkloadRestartErrorMessage         = "can't restart paused deployment (run rollout resume first)"
-	WorkloadActionAnnotationPatchErrorMessage = "impossible to patch the annotations for the workload template: %s"
-	UnauthorizedRequestErrorMessage           = "unauthorized request against the connection. Set the credentials for this server"
-	InvalidJsonErrorMessage                   = "invalid json from the HTTP response"
-	InvalidActionErrorMessage                 = "invalid action. supported: restart, delete"
-	DeleteActionNotImplementedErrorMessage    = "deletion action is not implemented yet"
+    // TODO
+    AnnotationRestartedAt = "rabbit-stalker.docplanner.com/restartedAt"
 
-	// TODO
-	ResourceKindDeployment  = "Deployment"
-	ResourceKindStatefulSet = "StatefulSet"
-	ResourceKindDaemonSet   = "DaemonSet"
+    // parseSyncTimeError error message for invalid value on 'synchronization' parameter
+    parseSyncTimeError = "Can not parse the synchronization time from workloadAction: %s"
 
-	// TODO
-	ActionDelete  = "delete"
-	ActionRestart = "restart"
+    WorkloadRestartNotSupportedErrorMessage   = "restarting is not supported"
+    PausedWorkloadRestartErrorMessage         = "can't restart paused deployment (run rollout resume first)"
+    WorkloadActionAnnotationPatchErrorMessage = "impossible to patch the annotations for the workload template: %s"
+    UnauthorizedRequestErrorMessage           = "unauthorized request against the connection. Set the credentials for this server"
+    UnsuccessfulRequestErrorMessage           = "unsuccessful request: %d"
+    InvalidJsonErrorMessage                   = "invalid json from the HTTP response"
+    InvalidActionErrorMessage                 = "invalid action. supported: restart, delete"
+    DeleteActionNotImplementedErrorMessage    = "deletion action is not implemented yet"
+
+    // TODO
+    ResourceKindDeployment  = "Deployment"
+    ResourceKindStatefulSet = "StatefulSet"
+    ResourceKindDaemonSet   = "DaemonSet"
+
+    // TODO
+    ActionDelete  = "delete"
+    ActionRestart = "restart"
 )
+
+// HttpRequestAuth represents authentication params provided to a request
+// TODO Move wherever it's better than here
+type HttpRequestAuth struct {
+    Username string
+    Password string
+    Token    string
+}
+
+// RabbitPaginatedResponse represents a response from an endpoint with pagination params
+// TODO Move wherever it's better than here
+type RabbitPaginatedResponse struct {
+    FilteredCount int           `json:"filtered_count"`
+    ItemCount     int           `json:"item_count"`
+    Items         []interface{} `json:"items"`
+    Page          int           `json:"page"`
+    PageCount     int           `json:"page_count"`
+    PageSize      int           `json:"page_size"`
+    TotalCount    int           `json:"total_count"`
+}
 
 // GetSynchronizationTime return the spec.synchronization.time as duration, or default time on failures
 func (r *WorkloadActionReconciler) GetSynchronizationTime(workloadActionManifest *rabbitstalkerv1alpha1.WorkloadAction) (synchronizationTime time.Duration, err error) {
-	synchronizationTime, err = time.ParseDuration(workloadActionManifest.Spec.Synchronization.Time)
-	if err != nil {
-		err = NewErrorf(parseSyncTimeError, workloadActionManifest.Name)
-		return synchronizationTime, err
-	}
+    synchronizationTime, err = time.ParseDuration(workloadActionManifest.Spec.Synchronization.Time)
+    if err != nil {
+        err = NewErrorf(parseSyncTimeError, workloadActionManifest.Name)
+        return synchronizationTime, err
+    }
 
-	return synchronizationTime, err
+    return synchronizationTime, err
 }
 
 // GetSecretResource call Kubernetes API to return an arbitrary Secret object
 func (r *WorkloadActionReconciler) GetSecretResource(ctx context.Context, namespace string, name string) (secret *corev1.Secret, err error) {
 
-	secretResource := corev1.Secret{}
+    secretResource := corev1.Secret{}
 
-	err = r.Get(ctx, client.ObjectKey{
-		Namespace: namespace,
-		Name:      name,
-	}, &secretResource)
+    err = r.Get(ctx, client.ObjectKey{
+        Namespace: namespace,
+        Name:      name,
+    }, &secretResource)
 
-	secret = &secretResource
-	return secret, err
+    secret = &secretResource
+    return secret, err
 }
 
 // GetCredentialsResources call Kubernetes API to return the Secret objects for the HTTP request authentication
 func (r *WorkloadActionReconciler) GetCredentialsResources(ctx context.Context, workloadActionManifest *rabbitstalkerv1alpha1.WorkloadAction) (resources []*corev1.Secret, err error) {
 
-	usernameSecret := &corev1.Secret{}
-	passwordSecret := &corev1.Secret{}
+    usernameSecret := &corev1.Secret{}
+    passwordSecret := &corev1.Secret{}
 
-	secretNamespace := workloadActionManifest.Namespace
+    secretNamespace := workloadActionManifest.Namespace
 
-	// Get the Secret with the username field inside
-	secretName := workloadActionManifest.Spec.RabbitConnection.Credentials.Username.SecretRef.Name
-	usernameSecret, usernameErr := r.GetSecretResource(ctx, secretNamespace, secretName)
+    // Get the Secret with the username field inside
+    secretName := workloadActionManifest.Spec.RabbitConnection.Credentials.Username.SecretRef.Name
+    usernameSecret, usernameErr := r.GetSecretResource(ctx, secretNamespace, secretName)
 
-	// Get the Secret with the password field inside
-	secretName = workloadActionManifest.Spec.RabbitConnection.Credentials.Password.SecretRef.Name
-	passwordSecret, passwordErr := r.GetSecretResource(ctx, secretNamespace, secretName)
-	if usernameErr != nil || passwordErr != nil {
-		return resources, err
-	}
-	resources = append(resources, usernameSecret)
-	resources = append(resources, passwordSecret)
+    // Get the Secret with the password field inside
+    secretName = workloadActionManifest.Spec.RabbitConnection.Credentials.Password.SecretRef.Name
+    passwordSecret, passwordErr := r.GetSecretResource(ctx, secretNamespace, secretName)
+    if usernameErr != nil || passwordErr != nil {
+        return resources, err
+    }
+    resources = append(resources, usernameSecret)
+    resources = append(resources, passwordSecret)
 
-	return resources, err
+    return resources, err
 }
 
 // GetWorkloadResource call Kubernetes API to return the WorkloadResource object
 func (r *WorkloadActionReconciler) GetWorkloadResource(ctx context.Context, workloadActionManifest *rabbitstalkerv1alpha1.WorkloadAction) (resource *unstructured.Unstructured, err error) {
 
-	// Get the target manifest
-	target := unstructured.Unstructured{}
-	target.SetGroupVersionKind(workloadActionManifest.Spec.WorkloadRef.GroupVersionKind())
+    // Get the target manifest
+    target := unstructured.Unstructured{}
+    target.SetGroupVersionKind(workloadActionManifest.Spec.WorkloadRef.GroupVersionKind())
 
-	err = r.Get(ctx, client.ObjectKey{
-		Namespace: workloadActionManifest.Spec.WorkloadRef.Namespace,
-		Name:      workloadActionManifest.Spec.WorkloadRef.Name,
-	}, &target)
+    err = r.Get(ctx, client.ObjectKey{
+        Namespace: workloadActionManifest.Spec.WorkloadRef.Namespace,
+        Name:      workloadActionManifest.Spec.WorkloadRef.Name,
+    }, &target)
 
-	resource = &target
-	return resource, err
+    resource = &target
+    return resource, err
 }
 
-// addWorkloadResource TODO
+// addWorkloadResource add WorkloadRef referenced resource to the sources list
 func (r *WorkloadActionReconciler) addWorkloadResource(ctx context.Context, workloadActionManifest *rabbitstalkerv1alpha1.WorkloadAction, resources *[]string) (err error) {
 
-	// Get the target manifest
-	target, err := r.GetWorkloadResource(ctx, workloadActionManifest)
-	if err != nil {
-		return err
-	}
+    // Get the target manifest
+    target, err := r.GetWorkloadResource(ctx, workloadActionManifest)
+    if err != nil {
+        return err
+    }
 
-	targetObjectJson, err := json.Marshal(target.Object)
-	if err != nil {
-		return err
-	}
+    targetObjectJson, err := json.Marshal(target.Object)
+    if err != nil {
+        return err
+    }
 
-	*resources = append(*resources, string(targetObjectJson))
-
-	return err
+    *resources = append(*resources, string(targetObjectJson))
+    return err
 }
 
 // addAdditionalSources add additionalSources objects into the sources list
 func (r *WorkloadActionReconciler) addAdditionalSources(ctx context.Context, workloadActionManifest *rabbitstalkerv1alpha1.WorkloadAction, resources *[]string) (err error) {
 
-	// Fill the sources content, one by one
-	sourceObject := &unstructured.Unstructured{}
+    // Fill the sources content, one by one
+    sourceObject := &unstructured.Unstructured{}
 
-	for _, sourceReference := range workloadActionManifest.Spec.AdditionalSources {
-		sourceObject.SetGroupVersionKind(sourceReference.GroupVersionKind())
+    for _, sourceReference := range workloadActionManifest.Spec.AdditionalSources {
+        sourceObject.SetGroupVersionKind(sourceReference.GroupVersionKind())
 
-		err = r.Get(ctx, client.ObjectKey{
-			Namespace: sourceReference.Namespace,
-			Name:      sourceReference.Name,
-		}, sourceObject)
+        err = r.Get(ctx, client.ObjectKey{
+            Namespace: sourceReference.Namespace,
+            Name:      sourceReference.Name,
+        }, sourceObject)
 
-		if err != nil {
-			return err
-		}
+        if err != nil {
+            return err
+        }
 
-		sourceObjectJson, err := json.Marshal(sourceObject.Object)
-		if err != nil {
-			return err
-		}
+        sourceObjectJson, err := json.Marshal(sourceObject.Object)
+        if err != nil {
+            return err
+        }
 
-		*resources = append(*resources, string(sourceObjectJson))
-	}
+        *resources = append(*resources, string(sourceObjectJson))
+    }
 
-	return err
+    return err
 }
 
 // GetSourcesList return a JSON compatible list of objects with the target as first item, and the additionalSources after it
 func (r *WorkloadActionReconciler) GetSourcesList(ctx context.Context, workloadManifest *rabbitstalkerv1alpha1.WorkloadAction) (resources []string, err error) {
 
-	// Fill the resources list with the target
-	err = r.addWorkloadResource(ctx, workloadManifest, &resources)
-	if err != nil {
-		return resources, err
-	}
+    // Fill the resources list with the target
+    err = r.addWorkloadResource(ctx, workloadManifest, &resources)
+    if err != nil {
+        return resources, err
+    }
 
-	// Fill the resources list with the sources
-	err = r.addAdditionalSources(ctx, workloadManifest, &resources)
-	if err != nil {
-		return resources, err
-	}
+    // Fill the resources list with the sources
+    err = r.addAdditionalSources(ctx, workloadManifest, &resources)
+    if err != nil {
+        return resources, err
+    }
 
-	return resources, err
+    return resources, err
 }
 
 // GetParsedConditionValue return condition's value field with all substitutions already done
 func (r *WorkloadActionReconciler) GetParsedConditionValue(ctx context.Context, workloadManifest *rabbitstalkerv1alpha1.WorkloadAction) (conditionValue string, err error) {
-	referenceOpeningPattern := `\[\d+\]`
-	openingPattern := `{{`
-	closingPattern := `}}`
+    referenceOpeningPattern := `\[\d+\]`
+    openingPattern := `{{`
+    closingPattern := `}}`
 
-	var sourcesJson []string
-	sourcesJson, err = r.GetSourcesList(ctx, workloadManifest)
-	if err != nil {
-		return conditionValue, err
-	}
+    var sourcesJson []string
+    sourcesJson, err = r.GetSourcesList(ctx, workloadManifest)
+    if err != nil {
+        return conditionValue, err
+    }
 
-	// Ignore looping on empty sources
-	if len(sourcesJson) == 0 {
-		return conditionValue, err
-	}
+    // Ignore looping on empty sources
+    if len(sourcesJson) == 0 {
+        return conditionValue, err
+    }
 
-	regexPattern := fmt.Sprintf(`%s%s([\s\S]*?)%s`, referenceOpeningPattern, regexp.QuoteMeta(openingPattern), regexp.QuoteMeta(closingPattern))
-	regex := regexp.MustCompile(regexPattern)
+    regexPattern := fmt.Sprintf(`%s%s([\s\S]*?)%s`, referenceOpeningPattern, regexp.QuoteMeta(openingPattern), regexp.QuoteMeta(closingPattern))
+    regex := regexp.MustCompile(regexPattern)
 
-	// Look for potential replacements on condition.value
-	conditionValue = workloadManifest.Spec.Condition.Value
-	matches := regex.FindAllStringSubmatch(conditionValue, -1)
+    // Look for potential replacements on condition.value
+    conditionValue = workloadManifest.Spec.Condition.Value
+    matches := regex.FindAllStringSubmatch(conditionValue, -1)
 
-	for _, match := range matches {
-		// Look for the desired source in each replacement
-		srcIndexString := match[0][strings.IndexByte(match[0], '[')+1 : strings.IndexByte(match[0], ']')]
-		srcIndex, err := strconv.Atoi(srcIndexString)
-		if err != nil {
-			err = errors.New("invalid source index on condition value")
-			return conditionValue, err
-		}
+    for _, match := range matches {
+        // Look for the desired source in each replacement
+        srcIndexString := match[0][strings.IndexByte(match[0], '[')+1 : strings.IndexByte(match[0], ']')]
+        srcIndex, err := strconv.Atoi(srcIndexString)
+        if err != nil {
+            err = errors.New("invalid source index on condition value")
+            return conditionValue, err
+        }
 
-		// Check index is lower than sources length
-		if srcIndex >= len(sourcesJson) {
-			err = errors.New("invalid index to the sources list")
-			return conditionValue, err
-		}
+        // Check index is lower than sources length
+        if srcIndex >= len(sourcesJson) {
+            err = errors.New("invalid index to the sources list")
+            return conditionValue, err
+        }
 
-		match[1] = strings.TrimSpace(match[1])
+        match[1] = strings.TrimSpace(match[1])
 
-		parsedValue := gjson.Get(sourcesJson[srcIndex], match[1])
+        parsedValue := gjson.Get(sourcesJson[srcIndex], match[1])
 
-		conditionValue = strings.Replace(conditionValue, match[0], parsedValue.String(), 1)
-	}
+        conditionValue = strings.Replace(conditionValue, match[0], parsedValue.String(), 1)
+    }
 
-	return conditionValue, err
+    return conditionValue, err
 }
 
 // SetWorkloadRestartAnnotation restart a workload by changing an annotation.
 // This will trigger an automatic reconciliation on the workload in the same way done by kubectl
 func (r *WorkloadActionReconciler) SetWorkloadRestartAnnotation(ctx context.Context, obj *unstructured.Unstructured) (err error) {
 
-	var templateAnnotations map[string]interface{}
+    var templateAnnotations map[string]interface{}
 
-	resourceType := obj.GetObjectKind().GroupVersionKind()
-	// TODO: Check the group version just in case future changes on Kubernetes APIs
-	//groupVersion := resourceType.GroupVersion()
+    resourceType := obj.GetObjectKind().GroupVersionKind()
+    // TODO: Check the group version just in case future changes on Kubernetes APIs
+    //groupVersion := resourceType.GroupVersion()
 
-	// 1. Check allowed workload types
-	kind := resourceType.Kind
-	if kind != ResourceKindDeployment && kind != ResourceKindDaemonSet && kind != ResourceKindStatefulSet {
-		return fmt.Errorf(WorkloadRestartNotSupportedErrorMessage)
-	}
+    // 1. Check allowed workload types
+    kind := resourceType.Kind
+    if kind != ResourceKindDeployment && kind != ResourceKindDaemonSet && kind != ResourceKindStatefulSet {
+        return fmt.Errorf(WorkloadRestartNotSupportedErrorMessage)
+    }
 
-	// 2. Pay special attention on paused deployments
-	if kind == ResourceKindDeployment {
-		pausedValue, pausedFound, err := unstructured.NestedBool(obj.Object, "spec", "paused")
-		if err != nil {
-			return err
-		}
+    // 2. Pay special attention on paused deployments
+    if kind == ResourceKindDeployment {
+        pausedValue, pausedFound, err := unstructured.NestedBool(obj.Object, "spec", "paused")
+        if err != nil {
+            return err
+        }
 
-		if pausedFound && pausedValue == true {
-			err = errors.New(PausedWorkloadRestartErrorMessage)
-			return err
-		}
-	}
+        if pausedFound && pausedValue == true {
+            err = errors.New(PausedWorkloadRestartErrorMessage)
+            return err
+        }
+    }
 
-	// 3. Modify template annotations (spec.template.metadata.annotations) to include AnnotationRestartedAt
-	templateAnnotations, templateAnnotationsFound, err := unstructured.NestedMap(obj.Object, "spec", "template", "metadata", "annotations")
-	if err != nil {
-		return err
-	}
+    // 3. Modify template annotations (spec.template.metadata.annotations) to include AnnotationRestartedAt
+    templateAnnotations, templateAnnotationsFound, err := unstructured.NestedMap(obj.Object, "spec", "template", "metadata", "annotations")
+    if err != nil {
+        return err
+    }
 
-	// Take care about annotations not being present
-	if !templateAnnotationsFound || templateAnnotations == nil {
-		templateAnnotations = map[string]interface{}{}
-	}
-	templateAnnotations[AnnotationRestartedAt] = time.Now().Format(time.RFC3339)
+    // Take care about annotations not being present
+    if !templateAnnotationsFound || templateAnnotations == nil {
+        templateAnnotations = map[string]interface{}{}
+    }
+    templateAnnotations[AnnotationRestartedAt] = time.Now().Format(time.RFC3339)
 
-	// 4. Actually update the workload object against Kubernetes API
-	parsedTemplateAnnotations, err := json.Marshal(templateAnnotations)
-	if err != nil {
-		return err
-	}
+    // 4. Actually update the workload object against Kubernetes API
+    parsedTemplateAnnotations, err := json.Marshal(templateAnnotations)
+    if err != nil {
+        return err
+    }
 
-	patchBytes := []byte(fmt.Sprintf(`{"spec":{"template":{"metadata":{"annotations":%s}}}}`, parsedTemplateAnnotations))
+    patchBytes := []byte(fmt.Sprintf(`{"spec":{"template":{"metadata":{"annotations":%s}}}}`, parsedTemplateAnnotations))
 
-	err = r.Patch(ctx, obj, client.RawPatch(types.StrategicMergePatchType, patchBytes))
-	if err != nil {
-		err = errors.New(fmt.Sprintf(WorkloadActionAnnotationPatchErrorMessage, err))
-	}
+    err = r.Patch(ctx, obj, client.RawPatch(types.StrategicMergePatchType, patchBytes))
+    if err != nil {
+        err = errors.New(fmt.Sprintf(WorkloadActionAnnotationPatchErrorMessage, err))
+    }
 
-	return err
+    return err
 }
 
-// WorkloadActionTarget call Kubernetes API to actually workloadAction the resource
+// getHttpContent execute a request against a server and return the response in bytes
+func (r *WorkloadActionReconciler) getHttpContent(url string, auth HttpRequestAuth) (statusCode int, responseBytes []byte, err error) {
+
+    statusCode = http.StatusOK
+
+    httpClient := http.Client{Timeout: HttpRequestTimeout}
+
+    request, err := http.NewRequest(http.MethodGet, url, http.NoBody)
+    if err != nil {
+        return statusCode, responseBytes, err
+    }
+
+    request.Header.Add("Accept", HttpHeaderAccept)
+
+    if len(auth.Username) != 0 && len(auth.Password) != 0 {
+        request.SetBasicAuth(auth.Username, auth.Password)
+    }
+
+    response, err := httpClient.Do(request)
+    if err != nil {
+        return response.StatusCode, responseBytes, err
+    }
+
+    defer response.Body.Close()
+
+    if response.StatusCode == http.StatusUnauthorized {
+        err = errors.New(UnauthorizedRequestErrorMessage)
+        return response.StatusCode, responseBytes, err
+    }
+
+    if response.StatusCode != http.StatusOK {
+        err = errors.New(fmt.Sprintf(UnsuccessfulRequestErrorMessage, response.StatusCode))
+        return response.StatusCode, responseBytes, err
+    }
+
+    responseBytes, err = io.ReadAll(response.Body)
+    if err != nil {
+        return response.StatusCode, responseBytes, err
+    }
+
+    return response.StatusCode, responseBytes, err
+}
+
+// getQueueFromSimpleResponse return the status for a specific queue on a non-paginated request
+func (r *WorkloadActionReconciler) getQueueFromSimpleResponse(parsedUrl *url.URL, requestAuth HttpRequestAuth) (statusCode int, queuePool [][]byte, err error) {
+
+    var responseBody []byte
+
+    // Get the content of one page
+    statusCode, responseBody, err = r.getHttpContent(parsedUrl.String(), requestAuth)
+    if err != nil {
+        return statusCode, queuePool, err
+    }
+
+    // Add item to queuePool
+    queuePool = append(queuePool, responseBody)
+
+    return statusCode, queuePool, err
+}
+
+// getQueuesFromPaginatedResponse return all the queues' status across paginated results, together
+func (r *WorkloadActionReconciler) getQueuesFromPaginatedResponse(parsedUrl *url.URL, requestAuth HttpRequestAuth) (statusCode int, queuePool [][]byte, err error) {
+
+    var responseBody []byte
+    CurrentPage := StartingPageDefaultValue
+
+    //
+    regexParsedUrlQuery := parsedUrl.Query()
+    regexParsedUrlQuery.Set("page", strconv.Itoa(StartingPageDefaultValue))
+    parsedUrl.RawQuery = regexParsedUrlQuery.Encode()
+
+    // Get the queues information from all the pages
+    for {
+        // Get the content of one page
+        statusCode, responseBody, err = r.getHttpContent(parsedUrl.String(), requestAuth)
+        if err != nil {
+            return statusCode, queuePool, err
+        }
+
+        // Transform response into Go well-known struct
+        data := RabbitPaginatedResponse{}
+        err := json.Unmarshal(responseBody, &data)
+        if err != nil {
+            return statusCode, queuePool, err
+        }
+
+        // No items, don't waste compute resources processing
+        if data.ItemCount == 0 {
+            break
+        }
+
+        // Add page's items to queuePool
+        for _, item := range data.Items {
+            itemBytes, err := json.Marshal(item)
+            if err != nil {
+                // TODO: Should we completely return or just ignore current page?
+                return statusCode, queuePool, err
+            }
+            queuePool = append(queuePool, itemBytes)
+        }
+
+        // Last page or no items. Exit
+        if CurrentPage >= data.PageCount || data.ItemCount == 0 {
+            break
+        }
+
+        // Items pending. Request them
+        CurrentPage++
+        temporaryParsedUrl := parsedUrl.Query()
+        temporaryParsedUrl.Set("page", strconv.Itoa(CurrentPage))
+        parsedUrl.RawQuery = temporaryParsedUrl.Encode()
+    }
+
+    return statusCode, queuePool, err
+}
+
+// reconcileWorkloadAction call Kubernetes API to actually workloadAction the resource
 func (r *WorkloadActionReconciler) reconcileWorkloadAction(ctx context.Context, workloadActionManifest *rabbitstalkerv1alpha1.WorkloadAction) (err error) {
 
-	// 1. Look for the Secret resources only when credentials refs are set in WorkloadAction
-	var credentialsObjects []*corev1.Secret
+    // 1. Get the workload object
+    targetObject, err := r.GetWorkloadResource(ctx, workloadActionManifest)
+    if err != nil {
+        r.UpdateWorkloadActionCondition(workloadActionManifest, r.NewWorkloadActionCondition(ConditionTypeWorkloadActionReady,
+            metav1.ConditionFalse,
+            ConditionReasonWorkloadNotFound,
+            ConditionReasonWorkloadNotFoundMessage,
+        ))
+        return err
+    }
 
-	if !reflect.ValueOf(workloadActionManifest.Spec.RabbitConnection.Credentials).IsZero() {
-		credentialsObjects, err = r.GetCredentialsResources(ctx, workloadActionManifest)
-		if err != nil {
-			r.UpdateWorkloadActionCondition(workloadActionManifest, r.NewWorkloadActionCondition(ConditionTypeWorkloadActionReady,
-				metav1.ConditionFalse,
-				ConditionReasonCredentialsNotFound,
-				ConditionReasonCredentialsNotFoundMessage,
-			))
-			return err
-		}
-	}
+    // 2. Look for the Secret resources only when credentials refs are set in WorkloadAction
+    var credentialsObjects []*corev1.Secret
 
-	// 2. Fill the credentials only when the Secret resources where extracted
-	var username, password []byte
-	var usernameFound, passwordFound bool
+    if !reflect.ValueOf(workloadActionManifest.Spec.RabbitConnection.Credentials).IsZero() {
+        credentialsObjects, err = r.GetCredentialsResources(ctx, workloadActionManifest)
+        if err != nil {
+            r.UpdateWorkloadActionCondition(workloadActionManifest, r.NewWorkloadActionCondition(ConditionTypeWorkloadActionReady,
+                metav1.ConditionFalse,
+                ConditionReasonCredentialsNotFound,
+                ConditionReasonCredentialsNotFoundMessage,
+            ))
+            return err
+        }
+    }
 
-	if len(credentialsObjects) == 2 {
-		username, usernameFound = credentialsObjects[0].Data[workloadActionManifest.Spec.RabbitConnection.Credentials.Username.SecretRef.Key]
-		password, passwordFound = credentialsObjects[1].Data[workloadActionManifest.Spec.RabbitConnection.Credentials.Password.SecretRef.Key]
-		if !usernameFound || !passwordFound {
-			r.UpdateWorkloadActionCondition(workloadActionManifest, r.NewWorkloadActionCondition(ConditionTypeWorkloadActionReady,
-				metav1.ConditionFalse,
-				ConditionReasonCredentialsNotFound,
-				ConditionReasonCredentialsNotFoundMessage,
-			))
-			return err
-		}
-	}
+    // 3. Fill the credentials only when the Secret resources where extracted
+    var username, password []byte
+    var usernameFound, passwordFound bool
 
-	// 3. Get the workload object
-	targetObject, err := r.GetWorkloadResource(ctx, workloadActionManifest)
-	if err != nil {
-		r.UpdateWorkloadActionCondition(workloadActionManifest, r.NewWorkloadActionCondition(ConditionTypeWorkloadActionReady,
-			metav1.ConditionFalse,
-			ConditionReasonWorkloadNotFound,
-			ConditionReasonWorkloadNotFoundMessage,
-		))
-		return err
-	}
+    if len(credentialsObjects) == 2 {
+        username, usernameFound = credentialsObjects[0].Data[workloadActionManifest.Spec.RabbitConnection.Credentials.Username.SecretRef.Key]
+        password, passwordFound = credentialsObjects[1].Data[workloadActionManifest.Spec.RabbitConnection.Credentials.Password.SecretRef.Key]
+        if !usernameFound || !passwordFound {
+            r.UpdateWorkloadActionCondition(workloadActionManifest, r.NewWorkloadActionCondition(ConditionTypeWorkloadActionReady,
+                metav1.ConditionFalse,
+                ConditionReasonCredentialsNotFound,
+                ConditionReasonCredentialsNotFoundMessage,
+            ))
+            return err
+        }
+    }
 
-	// 4. Get the params for the HTTP request
-	urlString := workloadActionManifest.Spec.RabbitConnection.Url
-	urlString += fmt.Sprintf(RabbitAdminApiQueueEndpoint,
-		workloadActionManifest.Spec.RabbitConnection.Vhost,
-		workloadActionManifest.Spec.RabbitConnection.Queue)
+    requestAuth := HttpRequestAuth{
+        Username: string(username),
+        Password: string(password),
+    }
 
-	parsedUrl, err := url.Parse(urlString)
-	if err != nil {
-		r.UpdateWorkloadActionCondition(workloadActionManifest, r.NewWorkloadActionCondition(ConditionTypeWorkloadActionReady,
-			metav1.ConditionFalse,
-			ConditionReasonHttpRequestExecutionFailed,
-			ConditionReasonHttpRequestExecutionFailedMessage,
-		))
-		return err
-	}
+    // 4. Configure the URL and params for the HTTP request
+    // Set request URL depending on literal or regex
+    urlString := workloadActionManifest.Spec.RabbitConnection.Url
+    urlString += fmt.Sprintf(RabbitAdminApiQueuesEndpoint,
+        workloadActionManifest.Spec.RabbitConnection.Vhost)
 
-	// 5. Make the HTTP request to the RabbitMQ admin API
-	// TODO: Move whole step 4) to a function
-	httpClient := http.Client{Timeout: HttpRequestTimeout}
+    if !workloadActionManifest.Spec.RabbitConnection.UseRegex {
+        urlString += "/" + workloadActionManifest.Spec.RabbitConnection.Queue
+    }
 
-	request, err := http.NewRequest(http.MethodGet, parsedUrl.String(), http.NoBody)
-	if err != nil {
-		r.UpdateWorkloadActionCondition(workloadActionManifest, r.NewWorkloadActionCondition(ConditionTypeWorkloadActionReady,
-			metav1.ConditionFalse,
-			ConditionReasonHttpRequestExecutionFailed,
-			ConditionReasonHttpRequestExecutionFailedMessage,
-		))
-		return err
-	}
+    parsedUrl, err := url.Parse(urlString)
+    if err != nil {
+        r.UpdateWorkloadActionCondition(workloadActionManifest, r.NewWorkloadActionCondition(ConditionTypeWorkloadActionReady,
+            metav1.ConditionFalse,
+            ConditionReasonUrlParsingFailed,
+            ConditionReasonUrlParsingFailedMessage,
+        ))
+        return err
+    }
 
-	request.Header.Add("Accept", HttpHeaderAccept)
-	request.SetBasicAuth(string(username), string(password))
+    // Set initial query params for paginated requests when needed
+    if workloadActionManifest.Spec.RabbitConnection.UseRegex {
+        regexParsedUrlQuery := parsedUrl.Query()
+        regexParsedUrlQuery.Set("page", strconv.Itoa(StartingPageDefaultValue))
+        regexParsedUrlQuery.Set("page_size", strconv.Itoa(PageSizeDefaultValue))
+        regexParsedUrlQuery.Set("name", workloadActionManifest.Spec.RabbitConnection.Queue)
+        regexParsedUrlQuery.Set("use_regex", strconv.FormatBool(UseRegexDefaultValue))
+        parsedUrl.RawQuery = regexParsedUrlQuery.Encode()
+    }
 
-	response, err := httpClient.Do(request)
-	if err != nil {
-		r.UpdateWorkloadActionCondition(workloadActionManifest, r.NewWorkloadActionCondition(ConditionTypeWorkloadActionReady,
-			metav1.ConditionFalse,
-			ConditionReasonHttpRequestExecutionFailed,
-			ConditionReasonHttpRequestExecutionFailedMessage,
-		))
-		return err
-	}
-	defer response.Body.Close()
+    // 5. Make the HTTP request to the RabbitMQ admin API
+    var statusCode int
+    var queuePool [][]byte
 
-	if response.StatusCode == http.StatusUnauthorized {
-		r.UpdateWorkloadActionCondition(workloadActionManifest, r.NewWorkloadActionCondition(ConditionTypeWorkloadActionReady,
-			metav1.ConditionFalse,
-			ConditionReasonCredentialsNotValid,
-			ConditionReasonCredentialsNotValidMessage,
-		))
-		err = errors.New(UnauthorizedRequestErrorMessage)
-		return err
-	}
+    statusCode, queuePool, err = r.getQueueFromSimpleResponse(parsedUrl, requestAuth)
+    if workloadActionManifest.Spec.RabbitConnection.UseRegex {
+        statusCode, queuePool, err = r.getQueuesFromPaginatedResponse(parsedUrl, requestAuth)
+    }
 
-	responseBody, err := io.ReadAll(response.Body)
-	if err != nil {
-		r.UpdateWorkloadActionCondition(workloadActionManifest, r.NewWorkloadActionCondition(ConditionTypeWorkloadActionReady,
-			metav1.ConditionFalse,
-			ConditionReasonHttpRequestExecutionFailed,
-			ConditionReasonHttpRequestExecutionFailedMessage,
-		))
-		return err
-	}
+    if err != nil {
+        r.UpdateWorkloadActionCondition(workloadActionManifest, r.NewWorkloadActionCondition(ConditionTypeWorkloadActionReady,
+            metav1.ConditionFalse,
+            ConditionReasonHttpResponseNotSuccessful,
+            fmt.Sprintf(ConditionReasonHttpResponseNotSuccessfulMessage, statusCode),
+        ))
+        return err
+    }
 
-	// 6. Evaluate the condition to execute an action
-	// Ref: https://gjson.dev/
-	if !gjson.Valid(string(responseBody)) {
-		err = errors.New(InvalidJsonErrorMessage)
-		r.UpdateWorkloadActionCondition(workloadActionManifest, r.NewWorkloadActionCondition(ConditionTypeWorkloadActionReady,
-			metav1.ConditionFalse,
-			ConditionReasonHttpResponseNotValid,
-			ConditionReasonHttpResponseNotValidMessage,
-		))
-		return err
-	}
+    // 6. Evaluate the condition to execute an action.
+    // The condition.value is computed first as it's computed only once.
+    parsedValue, err := r.GetParsedConditionValue(ctx, workloadActionManifest)
+    if err != nil {
+        r.UpdateWorkloadActionCondition(workloadActionManifest, r.NewWorkloadActionCondition(ConditionTypeWorkloadActionReady,
+            metav1.ConditionFalse,
+            ConditionReasonConditionValueParsingFailed,
+            ConditionReasonConditionValueParsingFailedMessage,
+        ))
+        return err
+    }
 
-	//
-	parsedKey := gjson.Get(string(responseBody), workloadActionManifest.Spec.Condition.Key)
-	parsedValue, err := r.GetParsedConditionValue(ctx, workloadActionManifest)
+    // We allow regex for the queue.name. That means there could be different results on condition.key for each queue.
+    // because of that, we need to compare them all against condition.value, one by one
+    for queueItemIndex, queueItem := range queuePool {
 
-	if err != nil {
-		r.UpdateWorkloadActionCondition(workloadActionManifest, r.NewWorkloadActionCondition(ConditionTypeWorkloadActionReady,
-			metav1.ConditionFalse,
-			ConditionReasonConditionValueParsingFailed,
-			ConditionReasonConditionValueParsingFailedMessage,
-		))
-		return err
-	}
+        // Ref: https://gjson.dev/
+        if !gjson.Valid(string(queueItem)) {
+            err = errors.New(InvalidJsonErrorMessage)
+            r.UpdateWorkloadActionCondition(workloadActionManifest, r.NewWorkloadActionCondition(ConditionTypeWorkloadActionReady,
+                metav1.ConditionFalse,
+                ConditionReasonHttpResponseNotValid,
+                ConditionReasonHttpResponseNotValidMessage,
+            ))
+            return err
+        }
 
-	if parsedKey.String() != parsedValue {
-		return err
-	}
+        // Parse the condition for current item
+        // Condition is met for some item? go to action's execution
+        parsedKey := gjson.GetBytes(queueItem, workloadActionManifest.Spec.Condition.Key)
+        if parsedKey.String() == parsedValue {
+            break
+        }
 
-	// 7. Condition is met. Execute the action
-	switch workloadActionManifest.Spec.Action {
-	case ActionRestart:
-		err = r.SetWorkloadRestartAnnotation(ctx, targetObject)
-	case ActionDelete:
-		err = errors.New(DeleteActionNotImplementedErrorMessage)
-	default:
-		err = errors.New(InvalidActionErrorMessage)
-		r.UpdateWorkloadActionCondition(workloadActionManifest, r.NewWorkloadActionCondition(ConditionTypeWorkloadActionReady,
-			metav1.ConditionFalse,
-			ConditionReasonInvalidAction,
-			ConditionReasonInvalidActionMessage,
-		))
-		return err
-	}
+        // Last loop. Condition was not met. Return without execution
+        if len(queuePool) == queueItemIndex+1 {
+            return err
+        }
+    }
 
-	if err != nil {
-		r.UpdateWorkloadActionCondition(workloadActionManifest, r.NewWorkloadActionCondition(ConditionTypeWorkloadActionReady,
-			metav1.ConditionFalse,
-			ConditionReasonActionExecutionFailed,
-			ConditionReasonActionExecutionFailedMessage,
-		))
-	}
+    // 7. Condition is met. Execute the action
+    switch workloadActionManifest.Spec.Action {
+    case ActionRestart:
+        err = r.SetWorkloadRestartAnnotation(ctx, targetObject)
+    case ActionDelete:
+        err = errors.New(DeleteActionNotImplementedErrorMessage)
+    default:
+        err = errors.New(InvalidActionErrorMessage)
+        r.UpdateWorkloadActionCondition(workloadActionManifest, r.NewWorkloadActionCondition(ConditionTypeWorkloadActionReady,
+            metav1.ConditionFalse,
+            ConditionReasonInvalidAction,
+            ConditionReasonInvalidActionMessage,
+        ))
+        return err
+    }
 
-	return err
+    if err != nil {
+        r.UpdateWorkloadActionCondition(workloadActionManifest, r.NewWorkloadActionCondition(ConditionTypeWorkloadActionReady,
+            metav1.ConditionFalse,
+            ConditionReasonActionExecutionFailed,
+            ConditionReasonActionExecutionFailedMessage,
+        ))
+    }
+
+    return err
 }
