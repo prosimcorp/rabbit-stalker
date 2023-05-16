@@ -60,6 +60,7 @@ spec:
     url: "https://your-server.rmq.cloudamqp.com"
     vhost: "shared"
     queue: "your-queue-here"
+    useRegex: true
 
     # Setting credentials is optional.
     # ATTENTION: If set, BOT are required
@@ -98,6 +99,49 @@ spec:
     name: testing-workload
     namespace: default
 ```
+
+#### Queue names/regex
+
+Let's start talking about how to look for queues inside your RabbitMQ. The first approach is just to define a static
+name for the `queue` and `vhost`. This will perform the action over the workload when the condition is met, as simple
+as follows:
+
+```yaml
+apiVersion: rabbit-stalker.docplanner.com/v1alpha1
+kind: WorkloadAction
+metadata:
+  name: workloadaction-sample
+spec:
+  # ...
+  rabbitConnection:
+    url: "https://your-server.rmq.cloudamqp.com"
+    vhost: "shared"
+    queue: "your-queue-here"
+    useRegex: false
+```
+
+But what happens if you have some monolithic application that handle several queues at the same time? if several queues
+are managed by the same application instance (or pod inside Kubernetes), it's possible that your queues' names are defined
+following a pattern that can be represented by a REGEX expression. In that case, you can use the following feature:
+
+```yaml
+apiVersion: rabbit-stalker.docplanner.com/v1alpha1
+kind: WorkloadAction
+metadata:
+  name: workloadaction-sample
+spec:
+  # ...
+  rabbitConnection:
+    url: "https://your-server.rmq.cloudamqp.com"
+    vhost: "shared"
+    queue: |-
+      ^your_monolith_prefix.(cz|es|it|pl|tr|pt|de)_incoming_events$
+    useRegex: true
+```
+
+> ATTENTION! If the condition is met for some of them, the action will be immediately executed over the workload
+
+#### Conditions
 
 What can you do with the condition? As we said, it admits GJSON for dot notation, so basically, you can look for any
 field inside the RabbitMQ response. As an example, take the following sample JSON
