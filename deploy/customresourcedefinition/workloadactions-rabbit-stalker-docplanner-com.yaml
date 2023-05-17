@@ -103,12 +103,16 @@ spec:
                             description: SecretKeyReferenceSpec represents a reference to a Secret resource in the same namespace
                             properties:
                               key:
-                                description: Key in the Secret, when not specified an implementation-specific default key is used.
+                                description: Key in the Secret.
                                 type: string
                               name:
                                 description: Name of the Secret.
                                 type: string
+                              namespace:
+                                description: Namespace of the Secret.
+                                type: string
                             required:
+                            - key
                             - name
                             type: object
                         required:
@@ -121,12 +125,16 @@ spec:
                             description: SecretKeyReferenceSpec represents a reference to a Secret resource in the same namespace
                             properties:
                               key:
-                                description: Key in the Secret, when not specified an implementation-specific default key is used.
+                                description: Key in the Secret.
                                 type: string
                               name:
                                 description: Name of the Secret.
                                 type: string
+                              namespace:
+                                description: Namespace of the Secret.
+                                type: string
                             required:
+                            - key
                             - name
                             type: object
                         required:
@@ -147,7 +155,6 @@ spec:
                 required:
                 - queue
                 - url
-                - vhost
                 type: object
               synchronization:
                 description: SynchronizationSpec defines the behavior of synchronization
