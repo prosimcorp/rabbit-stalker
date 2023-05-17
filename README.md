@@ -58,23 +58,30 @@ spec:
   # Configuration parameters to be able to connect with RabbitMQ
   rabbitConnection:
     url: "https://your-server.rmq.cloudamqp.com"
-    vhost: "shared"
     queue: "your-queue-here"
     useRegex: true
 
-    # Setting credentials is optional.
-    # ATTENTION: If set, BOT are required
+    # (Optional) Vhost can be set (or not) when searching queues using regex patterns,
+    # (Mandatory) Vhost is required for searches based on exact queue names.
+    vhost: "shared"
+
+    # (Optional) Credentials to authenticate against endpoint.
+    # If set, both are required
     credentials:
       username:
         secretRef:
           name: testing-secret
           key: RABBITMQ_USERNAME
+
+          # (Optional) Getting credentials from other namespace is possible too
+          # When namespace is not defined, the same where this WorkloadAction CR is running will be used
+          namespace: default
       password:
         secretRef:
           name: testing-secret
           key: RABBITMQ_PASSWORD
 
-  # Additional sources to get information from.
+  # (Optional) Additional sources to get information from.
   # This sources can be used on condition.value
   additionalSources:
     - apiVersion: apps/v1
@@ -83,10 +90,13 @@ spec:
       namespace: default
 
   # This is the condition that will trigger the execution of the action.
-  # The 'key' field admits dot notation, and it's covered by gjson
-  # Ref: https://github.com/tidwall/gjson
   condition:
+    # The 'key' field admits dot notation, and it's covered by gjson
+    # Ref: https://github.com/tidwall/gjson
     key: "test"
+
+    # Additional sources from 'additionalSources' field can be used here to craft complex values using the pattern:
+    # [index]{{ gjson }}
     value: "something"
 
   # Action to do with the workload when the condition is met

@@ -15,9 +15,12 @@ spec:
   # Configuration
   rabbitConnection:
     url: "https://your-server.rmq.cloudamqp.com"
-    vhost: "shared"
     queue: "your-queue-here"
     useRegex: true
+
+    # (Optional) Vhost can be set (or not) when searching queues using regex patterns,
+    # (Mandatory) Vhost is required for searches based on exact queue names.
+    vhost: "shared"
 
     # (Optional) Credentials to authenticate against endpoint.
     # If set, both are required
@@ -26,6 +29,10 @@ spec:
         secretRef:
           name: testing-secret
           key: RABBITMQ_USERNAME
+
+          # (Optional) Getting credentials from other namespace is possible too
+          # When namespace is not defined, the same where this WorkloadAction CR is running will be used
+          namespace: default
       password:
         secretRef:
           name: testing-secret
@@ -46,7 +53,7 @@ spec:
     key: |-
       consumer_details.#(channel_details.node==rabbit@fancy-monk-sample-01).channel_details.node
 
-    # Additional sources can be used here to craft complex values using the following pattern:
+    # Additional sources from 'additionalSources' field can be used here to craft complex values using the pattern:
     # [index]{{ gjson }}
     value: |-
       [0]{{ metadata.annotations.node }}
