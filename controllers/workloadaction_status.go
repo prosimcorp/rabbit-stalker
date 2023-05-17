@@ -11,13 +11,17 @@ const (
 	// ConditionTypeWorkloadActionReady indicates that the WorkloadAction is ready to act or not
 	ConditionTypeWorkloadActionReady = "WorkloadActionReady"
 
+	// Workload not found
+	ConditionReasonWorkloadNotFound        = "WorkloadNotFound"
+	ConditionReasonWorkloadNotFoundMessage = "Workload resource was not found"
+
 	// Credentials not found
 	ConditionReasonCredentialsNotFound        = "CredentialsNotFound"
 	ConditionReasonCredentialsNotFoundMessage = "Credentials secret or key not found"
 
-	// Credentials not valid
-	//ConditionReasonCredentialsNotValid        = "CredentialsNotValid"
-	//ConditionReasonCredentialsNotValidMessage = "Credentials does not allow to authenticate"
+	// Required field not found
+	ConditionReasonRequiredFieldNotFound        = "RequiredFieldNotFound"
+	ConditionReasonRequiredFieldNotFoundMessage = "Required field not found. Is vhost set on literal queue name?"
 
 	// HTTPRequest failed
 	ConditionReasonUrlParsingFailed        = "UrlParsingFailed"
@@ -27,21 +31,21 @@ const (
 	ConditionReasonHttpResponseNotSuccessful        = "HttpRequestNotSuccessful"
 	ConditionReasonHttpResponseNotSuccessfulMessage = "Http request returned status code: %d"
 
-	// HTTPResponse not valid
-	ConditionReasonHttpResponseNotValid        = "HttpResponseNotValid"
-	ConditionReasonHttpResponseNotValidMessage = "Response can not be parsed"
-
-	// Workload not found
-	ConditionReasonWorkloadNotFound        = "WorkloadNotFound"
-	ConditionReasonWorkloadNotFoundMessage = "Workload resource was not found"
-
-	// Action not valid
-	ConditionReasonInvalidAction        = "InvalidAction"
-	ConditionReasonInvalidActionMessage = "Action is invalid"
+	// Queue not found
+	ConditionReasonQueueNotFound        = "QueueNotFound"
+	ConditionReasonQueueNotFoundMessage = "No queues were found with defined name"
 
 	// Condition value parsing failed
 	ConditionReasonConditionValueParsingFailed        = "ConditionValueParsingFailed"
 	ConditionReasonConditionValueParsingFailedMessage = "Condition value parsing process failed"
+
+	// HTTPResponse not valid
+	ConditionReasonHttpResponseNotValid        = "HttpResponseNotValid"
+	ConditionReasonHttpResponseNotValidMessage = "Response can not be parsed"
+
+	// Action not valid
+	ConditionReasonInvalidAction        = "InvalidAction"
+	ConditionReasonInvalidActionMessage = "Action is invalid"
 
 	// Action execution failed
 	ConditionReasonActionExecutionFailed        = "ActionExecutionFailed"

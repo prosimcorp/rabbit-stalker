@@ -19,7 +19,9 @@ package controllers
 import (
 	"context"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"time"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -126,7 +128,7 @@ func (r *WorkloadActionReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return result, err
 	}
 	result = ctrl.Result{
-		Requeue:      true,
+		//Requeue:      true,
 		RequeueAfter: RequeueTime,
 	}
 
@@ -153,6 +155,6 @@ func (r *WorkloadActionReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 // SetupWithManager sets up the controller with the Manager.
 func (r *WorkloadActionReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&rabbitstalkerv1alpha1.WorkloadAction{}).
+		For(&rabbitstalkerv1alpha1.WorkloadAction{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Complete(r)
 }

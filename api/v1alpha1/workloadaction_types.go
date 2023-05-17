@@ -23,11 +23,14 @@ import (
 
 // SecretKeyReferenceSpec represents a reference to a Secret resource in the same namespace
 type SecretKeyReferenceSpec struct {
+	// Namespace of the Secret.
+	Namespace string `json:"namespace,omitempty"`
+
 	// Name of the Secret.
 	Name string `json:"name"`
 
-	// Key in the Secret, when not specified an implementation-specific default key is used.
-	Key string `json:"key,omitempty"`
+	// Key in the Secret.
+	Key string `json:"key"`
 }
 
 // SynchronizationSpec defines the spec of the synchronization section of a WorkloadAction
@@ -49,7 +52,7 @@ type RabbitConnectionCredentialsSpec struct {
 // RabbitConnectionSpec represents the connection settings to connect with RabbitMQ admin API
 type RabbitConnectionSpec struct {
 	Url         string                          `json:"url"`
-	Vhost       string                          `json:"vhost"`
+	Vhost       string                          `json:"vhost,omitempty"`
 	Queue       string                          `json:"queue"`
 	UseRegex    bool                            `json:"useRegex,omitempty"`
 	Credentials RabbitConnectionCredentialsSpec `json:"credentials,omitempty"`
