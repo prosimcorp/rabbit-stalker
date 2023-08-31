@@ -1,6 +1,6 @@
 # rabbit-stalker
 
-<img src="https://github.com/docplanner/rabbit-stalker/raw/main/docs/img/logo.png" width="100">
+<img src="https://github.com/prosimcorp/rabbit-stalker/raw/main/docs/img/logo.png" width="100">
 
 Kubernetes Operator to get status related to specific queues on RabbitMQ. Depending on 
 some condition, it's able to restart or delete a Kubernetes workload
@@ -18,6 +18,10 @@ some condition, it's able to restart or delete a Kubernetes workload
 </p>
 
 ----
+
+> Hello there! a little advise: we crafted this wonderful project at [DocPlanner Tech](https://www.docplanner.tech/)
+> so you will see some references to the company across the repo. We moved it to ProsimCorp to assure the continuity
+> of the project, so we are in the process of moving everything. Expect some CRDs' headers change a bit because of that
 
 ## Description
 This project was motivated by a failure. Most famous PHP/Python libraries can establish connection with AMQP servers
