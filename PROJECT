@@ -2,19 +2,19 @@
 # This file is used to track the info used to scaffold your project
 # and allow the plugins properly work.
 # More info: https://book.kubebuilder.io/reference/project-config.html
-domain: docplanner.com
+domain: prosimcorp.com
 layout:
 - go.kubebuilder.io/v3
 projectName: rabbit-stalker
-repo: docplanner.com/rabbit-stalker
+repo: prosimcorp.com/rabbit-stalker
 resources:
 - api:
     crdVersion: v1
     namespaced: true
   controller: true
-  domain: docplanner.com
+  domain: prosimcorp.com
   group: rabbit-stalker
   kind: WorkloadAction
-  path: docplanner.com/rabbit-stalker/api/v1alpha1
+  path: prosimcorp.com/rabbit-stalker/api/v1alpha1
   version: v1alpha1
 version: "3"

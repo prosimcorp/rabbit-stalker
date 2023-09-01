@@ -29,12 +29,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	rabbitstalkerv1alpha1 "docplanner.com/rabbit-stalker/api/v1alpha1"
+	rabbitstalkerv1alpha1 "prosimcorp.com/rabbit-stalker/api/v1alpha1"
 )
 
 const (
 	defaultSyncTimeForExitWithError = 10 * time.Second
-	workloadActionFinalizer         = "rabbit-stalker.docplanner.com/finalizer"
+	workloadActionFinalizer         = "rabbit-stalker.prosimcorp.com/finalizer"
 
 	scheduleSynchronization = "Schedule synchronization in: %s"
 
@@ -54,9 +54,9 @@ type WorkloadActionReconciler struct {
 	// TODO: Include zapp logger here
 }
 
-//+kubebuilder:rbac:groups=rabbit-stalker.docplanner.com,resources=workloadactions,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=rabbit-stalker.docplanner.com,resources=workloadactions/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=rabbit-stalker.docplanner.com,resources=workloadactions/finalizers,verbs=update
+//+kubebuilder:rbac:groups=rabbit-stalker.prosimcorp.com,resources=workloadactions,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=rabbit-stalker.prosimcorp.com,resources=workloadactions/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=rabbit-stalker.prosimcorp.com,resources=workloadactions/finalizers,verbs=update
 //+kubebuilder:rbac:groups="*",resources=secrets;deployments;daemonsets;statefulsets,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to

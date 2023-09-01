@@ -12,7 +12,7 @@ metadata:
   name: workloadaction-viewer-role
 rules:
 - apiGroups:
-  - rabbit-stalker.docplanner.com
+  - rabbit-stalker.prosimcorp.com
   resources:
   - workloadactions
   verbs:
@@ -20,7 +20,7 @@ rules:
   - list
   - watch
 - apiGroups:
-  - rabbit-stalker.docplanner.com
+  - rabbit-stalker.prosimcorp.com
   resources:
   - workloadactions/status
   verbs:

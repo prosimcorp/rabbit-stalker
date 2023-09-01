@@ -20,7 +20,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - rabbit-stalker.docplanner.com
+  - rabbit-stalker.prosimcorp.com
   resources:
   - workloadactions
   verbs:
@@ -32,13 +32,13 @@ rules:
   - update
   - watch
 - apiGroups:
-  - rabbit-stalker.docplanner.com
+  - rabbit-stalker.prosimcorp.com
   resources:
   - workloadactions/finalizers
   verbs:
   - update
 - apiGroups:
-  - rabbit-stalker.docplanner.com
+  - rabbit-stalker.prosimcorp.com
   resources:
   - workloadactions/status
   verbs:

@@ -1,4 +1,4 @@
-apiVersion: rabbit-stalker.docplanner.com/v1alpha1
+apiVersion: rabbit-stalker.prosimcorp.com/v1alpha1
 kind: WorkloadAction
 metadata:
   labels:
