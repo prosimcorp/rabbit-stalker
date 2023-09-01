@@ -6,7 +6,7 @@ resources:
 - clusterrole/rabbit-stalker-proxy-role.yaml
 - clusterrolebinding/rabbit-stalker-manager-rolebinding.yaml
 - clusterrolebinding/rabbit-stalker-proxy-rolebinding.yaml
-- customresourcedefinition/workloadactions-rabbit-stalker-docplanner-com.yaml
+- customresourcedefinition/workloadactions-rabbit-stalker-prosimcorp-com.yaml
 - deployment/rabbit-stalker-controller-manager.yaml
 - namespace/rabbit-stalker-system.yaml
 - role/rabbit-stalker-leader-election-role.yaml

@@ -4,4 +4,4 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     cert-manager.io/inject-ca-from: $(CERTIFICATE_NAMESPACE)/$(CERTIFICATE_NAME)
-  name: workloadactions.rabbit-stalker.docplanner.com
+  name: workloadactions.rabbit-stalker.prosimcorp.com

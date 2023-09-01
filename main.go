@@ -31,8 +31,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	rabbitstalkerv1alpha1 "docplanner.com/rabbit-stalker/api/v1alpha1"
-	"docplanner.com/rabbit-stalker/controllers"
+	rabbitstalkerv1alpha1 "prosimcorp.com/rabbit-stalker/api/v1alpha1"
+	"prosimcorp.com/rabbit-stalker/controllers"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -71,7 +71,7 @@ func main() {
 		Port:                   9443,
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "20a43904.docplanner.com",
+		LeaderElectionID:       "20a43904.prosimcorp.com",
 		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
 		// when the Manager ends. This requires the binary to immediately end when the
 		// Manager is stopped, otherwise, this setting is unsafe. Setting this significantly

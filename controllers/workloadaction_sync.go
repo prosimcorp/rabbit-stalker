@@ -16,10 +16,10 @@ import (
 	"strings"
 	"time"
 
-	rabbitstalkerv1alpha1 "docplanner.com/rabbit-stalker/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	rabbitstalkerv1alpha1 "prosimcorp.com/rabbit-stalker/api/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/tidwall/gjson"
@@ -38,7 +38,7 @@ const (
 	HttpRequestTimeoutDefaultValue = 5 * time.Second
 
 	// TODO
-	AnnotationRestartedAt = "rabbit-stalker.docplanner.com/restartedAt"
+	AnnotationRestartedAt = "rabbit-stalker.prosimcorp.com/restartedAt"
 
 	// parseSyncTimeError error message for invalid value on 'synchronization' parameter
 	parseSyncTimeError = "Can not parse the synchronization time from workloadAction: %s"

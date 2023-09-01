@@ -1,4 +1,4 @@
-module docplanner.com/rabbit-stalker
+module prosimcorp.com/rabbit-stalker
 
 go 1.19
 

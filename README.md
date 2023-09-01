@@ -51,7 +51,7 @@ In this section we will show you some examples that maybe helps you. Anyway, the
 [is located here](./config/samples)
 
 ```yaml
-apiVersion: rabbit-stalker.docplanner.com/v1alpha1
+apiVersion: rabbit-stalker.prosimcorp.com/v1alpha1
 kind: WorkloadAction
 metadata:
   name: workloadaction-sample
@@ -121,7 +121,7 @@ name for the `queue` and `vhost`. This will perform the action over the workload
 as follows:
 
 ```yaml
-apiVersion: rabbit-stalker.docplanner.com/v1alpha1
+apiVersion: rabbit-stalker.prosimcorp.com/v1alpha1
 kind: WorkloadAction
 metadata:
   name: workloadaction-sample
@@ -139,7 +139,7 @@ are managed by the same application instance (or pod inside Kubernetes), it's po
 following a pattern that can be represented by a REGEX expression. In that case, you can use the following feature:
 
 ```yaml
-apiVersion: rabbit-stalker.docplanner.com/v1alpha1
+apiVersion: rabbit-stalker.prosimcorp.com/v1alpha1
 kind: WorkloadAction
 metadata:
   name: workloadaction-sample
@@ -351,7 +351,7 @@ Simple conditions are fine, so the next example will cover the case where you ha
 and need to restart the application because of zombie processes previously mentioned:
 
 ```yaml
-apiVersion: rabbit-stalker.docplanner.com/v1alpha1
+apiVersion: rabbit-stalker.prosimcorp.com/v1alpha1
 kind: WorkloadAction
 metadata:
   name: workloadaction-sample
@@ -367,7 +367,7 @@ does not iterate on arrays. Instead, it looks for a specific string to compare t
 For doing the trick on GJSON, it's possible to set conditions in the way it returns a string as follows:
 
 ```yaml
-apiVersion: rabbit-stalker.docplanner.com/v1alpha1
+apiVersion: rabbit-stalker.prosimcorp.com/v1alpha1
 kind: WorkloadAction
 metadata:
   name: workloadaction-sample
@@ -386,7 +386,7 @@ spec:
 Anyway, if you decide to get an array, then be sure you fit correctly the value on the condition to match:
 
 ```yaml
-apiVersion: rabbit-stalker.docplanner.com/v1alpha1
+apiVersion: rabbit-stalker.prosimcorp.com/v1alpha1
 kind: WorkloadAction
 metadata:
   name: workloadaction-sample
@@ -408,7 +408,7 @@ By the moment this operation is not supported by the operator, but we plan to ad
 The awesome point is that supporting gjson for conditions is really helpful, so you can craft an equivalent:
 
  ```yaml
-apiVersion: rabbit-stalker.docplanner.com/v1alpha1
+apiVersion: rabbit-stalker.prosimcorp.com/v1alpha1
 kind: WorkloadAction
 metadata:
   name: workloadaction-sample
@@ -436,7 +436,7 @@ to use some value coming from a source.
 Let's see an example:
 
 ```yaml
-apiVersion: rabbit-stalker.docplanner.com/v1alpha1
+apiVersion: rabbit-stalker.prosimcorp.com/v1alpha1
 kind: WorkloadAction
 metadata:
   name: workloadaction-sample
@@ -455,7 +455,7 @@ You can craft a value adding some string literals at any side of the pattern use
 replaced by the value found in the source:
 
 ```yaml
-apiVersion: rabbit-stalker.docplanner.com/v1alpha1
+apiVersion: rabbit-stalker.prosimcorp.com/v1alpha1
 kind: WorkloadAction
 metadata:
   name: workloadaction-sample
@@ -476,7 +476,7 @@ spec:
 As final feature you can use the patterns as many times as needed to build the final string:
 
 ```yaml
-apiVersion: rabbit-stalker.docplanner.com/v1alpha1
+apiVersion: rabbit-stalker.prosimcorp.com/v1alpha1
 kind: WorkloadAction
 metadata:
   name: workloadaction-sample

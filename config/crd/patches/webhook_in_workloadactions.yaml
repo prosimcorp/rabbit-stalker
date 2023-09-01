@@ -2,7 +2,7 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: workloadactions.rabbit-stalker.docplanner.com
+  name: workloadactions.rabbit-stalker.prosimcorp.com
 spec:
   conversion:
     strategy: Webhook

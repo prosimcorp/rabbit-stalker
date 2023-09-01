@@ -5,9 +5,9 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.11.1
   creationTimestamp: null
-  name: workloadactions.rabbit-stalker.docplanner.com
+  name: workloadactions.rabbit-stalker.prosimcorp.com
 spec:
-  group: rabbit-stalker.docplanner.com
+  group: rabbit-stalker.prosimcorp.com
   names:
     categories:
     - workloadactions
