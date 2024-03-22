@@ -55,6 +55,7 @@ const (
 
 	// TODO
 	ResourceKindDeployment  = "Deployment"
+	ResourceKindRollout  	= "Rollout"
 	ResourceKindStatefulSet = "StatefulSet"
 	ResourceKindDaemonSet   = "DaemonSet"
 
@@ -282,7 +283,7 @@ func (r *WorkloadActionReconciler) SetWorkloadRestartAnnotation(ctx context.Cont
 
 	// 1. Check allowed workload types
 	kind := resourceType.Kind
-	if kind != ResourceKindDeployment && kind != ResourceKindDaemonSet && kind != ResourceKindStatefulSet {
+	if kind != ResourceKindDeployment && kind != ResourceKindRollout && kind != ResourceKindDaemonSet && kind != ResourceKindStatefulSet {
 		return fmt.Errorf(WorkloadRestartNotSupportedErrorMessage)
 	}
 
@@ -297,6 +298,17 @@ func (r *WorkloadActionReconciler) SetWorkloadRestartAnnotation(ctx context.Cont
 			err = errors.New(PausedWorkloadRestartErrorMessage)
 			return err
 		}
+	}
+
+	if kind == ResourceKindRollout {
+		patchBytes := []byte(`{"spec":{"restartAt":"` + time + `"}}`)
+
+		err = r.Patch(ctx, obj, client.RawPatch(types.MergePatchType, patchBytes))
+		if err != nil {
+			err = errors.New(fmt.Sprintf(WorkloadActionAnnotationPatchErrorMessage, err))
+		}
+
+		return err
 	}
 
 	// 3. Modify template annotations (spec.template.metadata.annotations) to include AnnotationRestartedAt

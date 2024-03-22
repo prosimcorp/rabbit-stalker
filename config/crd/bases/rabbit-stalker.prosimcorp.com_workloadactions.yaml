@@ -217,7 +217,7 @@ spec:
                 - time
                 type: object
               workloadRef:
-                description: 'WorkloadRef represents a workload resource: deployment,
+                description: 'WorkloadRef represents a workload resource: deployment, rollout,
                   statefulset, daemonset'
                 properties:
                   apiVersion:
