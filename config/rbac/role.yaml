@@ -10,6 +10,7 @@ rules:
   resources:
   - daemonsets
   - deployments
+  - rollouts
   - secrets
   - statefulsets
   verbs:

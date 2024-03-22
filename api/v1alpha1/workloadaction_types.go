@@ -86,7 +86,7 @@ type WorkloadActionSpec struct {
 	// +kubebuilder:validation:Enum=restart;delete
 	Action string `json:"action"`
 
-	// WorkloadRef represents a workload resource: deployment, statefulset, daemonset
+	// WorkloadRef represents a workload resource: deployment, rollout, statefulset, daemonset
 	WorkloadRef corev1.ObjectReference `json:"workloadRef"`
 }
 
