@@ -55,9 +55,9 @@ const (
 
 	// TODO
 	ResourceKindDeployment  = "Deployment"
-	ResourceKindRollout  	= "Rollout"
 	ResourceKindStatefulSet = "StatefulSet"
 	ResourceKindDaemonSet   = "DaemonSet"
+	ResourceKindArgoRollout = "ArgoRollout"
 
 	// TODO
 	ActionDelete  = "delete"
@@ -283,7 +283,7 @@ func (r *WorkloadActionReconciler) SetWorkloadRestartAnnotation(ctx context.Cont
 
 	// 1. Check allowed workload types
 	kind := resourceType.Kind
-	if kind != ResourceKindDeployment && kind != ResourceKindRollout && kind != ResourceKindDaemonSet && kind != ResourceKindStatefulSet {
+	if kind != ResourceKindDeployment && kind != ResourceKindArgoRollout && kind != ResourceKindDaemonSet && kind != ResourceKindStatefulSet {
 		return fmt.Errorf(WorkloadRestartNotSupportedErrorMessage)
 	}
 
@@ -300,7 +300,7 @@ func (r *WorkloadActionReconciler) SetWorkloadRestartAnnotation(ctx context.Cont
 		}
 	}
 
-	if kind == ResourceKindRollout {
+	if kind == ResourceKindArgoRollout {
 		patchBytes := []byte(`{"spec":{"restartAt":"` + time + `"}}`)
 
 		err = r.Patch(ctx, obj, client.RawPatch(types.MergePatchType, patchBytes))
