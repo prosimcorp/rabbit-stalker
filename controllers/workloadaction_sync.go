@@ -64,7 +64,8 @@ const (
 	ActionRestart = "restart"
 )
 
-type pPatchConstructorFunc func(obj *unstructured.Unstructured) ([]byte, error)
+// PatchConstructorFuncPointerT represents a pointer to a function for crafting a patch
+type PatchConstructorFuncPointerT func(obj *unstructured.Unstructured) ([]byte, error)
 
 // HttpRequestAuth represents authentication params provided to a request
 // TODO Move wherever it's better than here
@@ -273,8 +274,8 @@ func (r *WorkloadActionReconciler) GetParsedConditionValue(ctx context.Context, 
 	return conditionValue, err
 }
 
-// getTemplateAnnotations TODO
-func getTemplateAnnotations(obj *unstructured.Unstructured) (annotations []byte, err error) {
+// getPodTemplateAnnotations get podTemplate annotations from Deployment, Statefulset and Daemonset resources
+func getPodTemplateAnnotations(obj *unstructured.Unstructured) (annotations []byte, err error) {
 	var templateAnnotations map[string]interface{}
 
 	// 1. Modify template annotations (spec.template.metadata.annotations) to include AnnotationRestartedAt
@@ -294,9 +295,10 @@ func getTemplateAnnotations(obj *unstructured.Unstructured) (annotations []byte,
 	return annotations, err
 }
 
-// defaultPatchConstructor TODO
+// defaultPatchConstructor return a patch valid for core workload resources (deployments, statefulsets, daemonsets)
+// adding previously existing annotations from podTemplate
 func defaultPatchConstructor(obj *unstructured.Unstructured) (patch []byte, err error) {
-	annotations, err := getTemplateAnnotations(obj)
+	annotations, err := getPodTemplateAnnotations(obj)
 	if err != nil {
 		return patch, err
 	}
@@ -305,7 +307,7 @@ func defaultPatchConstructor(obj *unstructured.Unstructured) (patch []byte, err 
 	return patch, err
 }
 
-// deploymentPatchConstructor TODO
+// deploymentPatchConstructor return a patch for deployment resources to be used in SetWorkloadRestartAnnotation
 func deploymentPatchConstructor(obj *unstructured.Unstructured) (patch []byte, err error) {
 	pausedValue, found, err := unstructured.NestedBool(obj.Object, "spec", "paused")
 	if err != nil {
@@ -317,12 +319,7 @@ func deploymentPatchConstructor(obj *unstructured.Unstructured) (patch []byte, e
 		return patch, err
 	}
 
-	annotations, err := getTemplateAnnotations(obj)
-	if err != nil {
-		return patch, err
-	}
-
-	patch = []byte(fmt.Sprintf(`{"spec":{"template":{"metadata":{"annotations":%s}}}}`, annotations))
+	patch, err = defaultPatchConstructor(obj)
 
 	return patch, err
 }
@@ -331,7 +328,7 @@ func deploymentPatchConstructor(obj *unstructured.Unstructured) (patch []byte, e
 // This will trigger an automatic reconciliation on the workload in the same way done by kubectl
 func (r *WorkloadActionReconciler) SetWorkloadRestartAnnotation(ctx context.Context, obj *unstructured.Unstructured) (err error) {
 
-	var patchConstructorMap map[string]pPatchConstructorFunc = map[string]pPatchConstructorFunc{
+	var patchConstructorMap map[string]PatchConstructorFuncPointerT = map[string]PatchConstructorFuncPointerT{
 		ResourceKindDeployment:  deploymentPatchConstructor,
 		ResourceKindStatefulSet: defaultPatchConstructor,
 		ResourceKindDaemonSet:   defaultPatchConstructor,
