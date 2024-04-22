@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -575,9 +574,6 @@ func (r *WorkloadActionReconciler) reconcileWorkloadAction(ctx context.Context, 
 		regexParsedUrlQuery.Set("use_regex", strconv.FormatBool(UseRegexDefaultValue))
 		parsedUrl.RawQuery = regexParsedUrlQuery.Encode()
 	}
-
-	// TODO DEBUG HERE ONLY
-	log.Printf("parsedURL 4: %v", parsedUrl.String())
 
 	// 5. Make the HTTP request to the RabbitMQ admin API
 	var statusCode int
