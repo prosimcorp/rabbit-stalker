@@ -4,10 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/pkg/errors"
 	"io"
-	"k8s.io/apimachinery/pkg/types"
-	"log"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -15,6 +12,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/types"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -63,6 +63,9 @@ const (
 	ActionDelete  = "delete"
 	ActionRestart = "restart"
 )
+
+// PatchConstructorFuncPointerT represents a pointer to a function for crafting a patch
+type PatchConstructorFuncPointerT func(obj *unstructured.Unstructured) ([]byte, error)
 
 // HttpRequestAuth represents authentication params provided to a request
 // TODO Move wherever it's better than here
@@ -271,11 +274,65 @@ func (r *WorkloadActionReconciler) GetParsedConditionValue(ctx context.Context, 
 	return conditionValue, err
 }
 
+// getPodTemplateAnnotations get podTemplate annotations from Deployment, Statefulset and Daemonset resources
+func getPodTemplateAnnotations(obj *unstructured.Unstructured) (annotations []byte, err error) {
+	var templateAnnotations map[string]interface{}
+
+	// 1. Modify template annotations (spec.template.metadata.annotations) to include AnnotationRestartedAt
+	templateAnnotations, found, err := unstructured.NestedMap(obj.Object, "spec", "template", "metadata", "annotations")
+	if err != nil {
+		return annotations, err
+	}
+	// Take care about annotations not being present
+	if !found || templateAnnotations == nil {
+		templateAnnotations = map[string]interface{}{}
+	}
+	templateAnnotations[AnnotationRestartedAt] = time.Now().Format(time.RFC3339)
+
+	// 2. Actually update the workload object against Kubernetes API
+	annotations, err = json.Marshal(templateAnnotations)
+
+	return annotations, err
+}
+
+// defaultPatchConstructor return a patch valid for core workload resources (deployments, statefulsets, daemonsets)
+// adding previously existing annotations from podTemplate
+func defaultPatchConstructor(obj *unstructured.Unstructured) (patch []byte, err error) {
+	annotations, err := getPodTemplateAnnotations(obj)
+	if err != nil {
+		return patch, err
+	}
+
+	patch = []byte(fmt.Sprintf(`{"spec":{"template":{"metadata":{"annotations":%s}}}}`, annotations))
+	return patch, err
+}
+
+// deploymentPatchConstructor return a patch for deployment resources to be used in SetWorkloadRestartAnnotation
+func deploymentPatchConstructor(obj *unstructured.Unstructured) (patch []byte, err error) {
+	pausedValue, found, err := unstructured.NestedBool(obj.Object, "spec", "paused")
+	if err != nil {
+		return patch, err
+	}
+
+	if found && pausedValue {
+		err = errors.New(PausedWorkloadRestartErrorMessage)
+		return patch, err
+	}
+
+	patch, err = defaultPatchConstructor(obj)
+
+	return patch, err
+}
+
 // SetWorkloadRestartAnnotation restart a workload by changing an annotation.
 // This will trigger an automatic reconciliation on the workload in the same way done by kubectl
 func (r *WorkloadActionReconciler) SetWorkloadRestartAnnotation(ctx context.Context, obj *unstructured.Unstructured) (err error) {
 
-	var templateAnnotations map[string]interface{}
+	var patchConstructorMap map[string]PatchConstructorFuncPointerT = map[string]PatchConstructorFuncPointerT{
+		ResourceKindDeployment:  deploymentPatchConstructor,
+		ResourceKindStatefulSet: defaultPatchConstructor,
+		ResourceKindDaemonSet:   defaultPatchConstructor,
+	}
 
 	resourceType := obj.GetObjectKind().GroupVersionKind()
 	// TODO: Check the group version just in case future changes on Kubernetes APIs
@@ -283,57 +340,21 @@ func (r *WorkloadActionReconciler) SetWorkloadRestartAnnotation(ctx context.Cont
 
 	// 1. Check allowed workload types
 	kind := resourceType.Kind
-	if kind != ResourceKindDeployment && kind != ResourceKindArgoRollout && kind != ResourceKindDaemonSet && kind != ResourceKindStatefulSet {
-		return fmt.Errorf(WorkloadRestartNotSupportedErrorMessage)
-	}
-
-	// 2. Pay special attention on paused deployments
-	if kind == ResourceKindDeployment {
-		pausedValue, pausedFound, err := unstructured.NestedBool(obj.Object, "spec", "paused")
-		if err != nil {
-			return err
-		}
-
-		if pausedFound && pausedValue == true {
-			err = errors.New(PausedWorkloadRestartErrorMessage)
-			return err
-		}
-	}
-
-	if kind == ResourceKindArgoRollout {
-		patchBytes := []byte(`{"spec":{"restartAt":"` + time + `"}}`)
-
-		err = r.Patch(ctx, obj, client.RawPatch(types.MergePatchType, patchBytes))
-		if err != nil {
-			err = errors.New(fmt.Sprintf(WorkloadActionAnnotationPatchErrorMessage, err))
-		}
-
+	if _, ok := patchConstructorMap[kind]; !ok {
+		err = errors.New(WorkloadRestartNotSupportedErrorMessage)
 		return err
 	}
 
-	// 3. Modify template annotations (spec.template.metadata.annotations) to include AnnotationRestartedAt
-	templateAnnotations, templateAnnotationsFound, err := unstructured.NestedMap(obj.Object, "spec", "template", "metadata", "annotations")
+	// 2. Construct the patch with related function
+	patchBytes, err := patchConstructorMap[kind](obj)
 	if err != nil {
 		return err
 	}
 
-	// Take care about annotations not being present
-	if !templateAnnotationsFound || templateAnnotations == nil {
-		templateAnnotations = map[string]interface{}{}
-	}
-	templateAnnotations[AnnotationRestartedAt] = time.Now().Format(time.RFC3339)
-
-	// 4. Actually update the workload object against Kubernetes API
-	parsedTemplateAnnotations, err := json.Marshal(templateAnnotations)
-	if err != nil {
-		return err
-	}
-
-	patchBytes := []byte(fmt.Sprintf(`{"spec":{"template":{"metadata":{"annotations":%s}}}}`, parsedTemplateAnnotations))
-
+	// 3. Execute the patch
 	err = r.Patch(ctx, obj, client.RawPatch(types.StrategicMergePatchType, patchBytes))
 	if err != nil {
-		err = errors.New(fmt.Sprintf(WorkloadActionAnnotationPatchErrorMessage, err))
+		err = fmt.Errorf(WorkloadActionAnnotationPatchErrorMessage, err)
 	}
 
 	return err
@@ -554,9 +575,6 @@ func (r *WorkloadActionReconciler) reconcileWorkloadAction(ctx context.Context, 
 		regexParsedUrlQuery.Set("use_regex", strconv.FormatBool(UseRegexDefaultValue))
 		parsedUrl.RawQuery = regexParsedUrlQuery.Encode()
 	}
-
-	// TODO DEBUG HERE ONLY
-	log.Printf("parsedURL 4: %v", parsedUrl.String())
 
 	// 5. Make the HTTP request to the RabbitMQ admin API
 	var statusCode int
