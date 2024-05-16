@@ -63,8 +63,20 @@ const (
 	ActionRestart = "restart"
 )
 
+// PatchConstructorPatchT represents a 'patch' and (they way it is applied)
+// returned by a PatchConstructorFuncPointerT
+// TODO Move wherever it's better than here
+type PatchConstructorPatchT struct {
+	// PatchType represents the type of patch to apply
+	PatchType types.PatchType
+
+	// Patch represents the patch desired to be applied
+	Patch []byte
+}
+
 // PatchConstructorFuncPointerT represents a pointer to a function for crafting a patch
-type PatchConstructorFuncPointerT func(obj *unstructured.Unstructured) ([]byte, error)
+// TODO Move wherever it's better than here
+type PatchConstructorFuncPointerT func(obj *unstructured.Unstructured) (PatchConstructorPatchT, error)
 
 // HttpRequestAuth represents authentication params provided to a request
 // TODO Move wherever it's better than here
@@ -296,18 +308,20 @@ func getPodTemplateAnnotations(obj *unstructured.Unstructured) (annotations []by
 
 // defaultPatchConstructor return a patch valid for core workload resources (deployments, statefulsets, daemonsets)
 // adding previously existing annotations from podTemplate
-func defaultPatchConstructor(obj *unstructured.Unstructured) (patch []byte, err error) {
+func defaultPatchConstructor(obj *unstructured.Unstructured) (patch PatchConstructorPatchT, err error) {
 	annotations, err := getPodTemplateAnnotations(obj)
 	if err != nil {
 		return patch, err
 	}
 
-	patch = []byte(fmt.Sprintf(`{"spec":{"template":{"metadata":{"annotations":%s}}}}`, annotations))
+	patch.Patch = []byte(fmt.Sprintf(`{"spec":{"template":{"metadata":{"annotations":%s}}}}`, annotations))
+	patch.PatchType = types.StrategicMergePatchType
+
 	return patch, err
 }
 
 // deploymentPatchConstructor return a patch for deployment resources to be used in SetWorkloadRestartAnnotation
-func deploymentPatchConstructor(obj *unstructured.Unstructured) (patch []byte, err error) {
+func deploymentPatchConstructor(obj *unstructured.Unstructured) (patch PatchConstructorPatchT, err error) {
 	pausedValue, found, err := unstructured.NestedBool(obj.Object, "spec", "paused")
 	if err != nil {
 		return patch, err
@@ -345,13 +359,13 @@ func (r *WorkloadActionReconciler) SetWorkloadRestartAnnotation(ctx context.Cont
 	}
 
 	// 2. Construct the patch with related function
-	patchBytes, err := patchConstructorMap[kind](obj)
+	returnedPatch, err := patchConstructorMap[kind](obj)
 	if err != nil {
 		return err
 	}
 
 	// 3. Execute the patch
-	err = r.Patch(ctx, obj, client.RawPatch(types.StrategicMergePatchType, patchBytes))
+	err = r.Patch(ctx, obj, client.RawPatch(returnedPatch.PatchType, returnedPatch.Patch))
 	if err != nil {
 		err = fmt.Errorf(WorkloadActionAnnotationPatchErrorMessage, err)
 	}
