@@ -63,10 +63,10 @@ const (
 	ActionRestart = "restart"
 )
 
-// PatchConstructorFuncPointerReturnT represents a 'patch' and (they way it is applied)
+// PatchConstructorPatchT represents a 'patch' and (they way it is applied)
 // returned by a PatchConstructorFuncPointerT
 // TODO Move wherever it's better than here
-type PatchConstructorFuncPointerReturnT struct {
+type PatchConstructorPatchT struct {
 	// PatchType represents the type of patch to apply
 	PatchType types.PatchType
 
@@ -76,7 +76,7 @@ type PatchConstructorFuncPointerReturnT struct {
 
 // PatchConstructorFuncPointerT represents a pointer to a function for crafting a patch
 // TODO Move wherever it's better than here
-type PatchConstructorFuncPointerT func(obj *unstructured.Unstructured) (PatchConstructorFuncPointerReturnT, error)
+type PatchConstructorFuncPointerT func(obj *unstructured.Unstructured) (PatchConstructorPatchT, error)
 
 // HttpRequestAuth represents authentication params provided to a request
 // TODO Move wherever it's better than here
@@ -308,7 +308,7 @@ func getPodTemplateAnnotations(obj *unstructured.Unstructured) (annotations []by
 
 // defaultPatchConstructor return a patch valid for core workload resources (deployments, statefulsets, daemonsets)
 // adding previously existing annotations from podTemplate
-func defaultPatchConstructor(obj *unstructured.Unstructured) (patch PatchConstructorFuncPointerReturnT, err error) {
+func defaultPatchConstructor(obj *unstructured.Unstructured) (patch PatchConstructorPatchT, err error) {
 	annotations, err := getPodTemplateAnnotations(obj)
 	if err != nil {
 		return patch, err
@@ -321,7 +321,7 @@ func defaultPatchConstructor(obj *unstructured.Unstructured) (patch PatchConstru
 }
 
 // deploymentPatchConstructor return a patch for deployment resources to be used in SetWorkloadRestartAnnotation
-func deploymentPatchConstructor(obj *unstructured.Unstructured) (patch PatchConstructorFuncPointerReturnT, err error) {
+func deploymentPatchConstructor(obj *unstructured.Unstructured) (patch PatchConstructorPatchT, err error) {
 	pausedValue, found, err := unstructured.NestedBool(obj.Object, "spec", "paused")
 	if err != nil {
 		return patch, err
