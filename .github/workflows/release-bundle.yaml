@@ -1,0 +1,48 @@
+name: Bundle Kubernetes manifests
+
+on:
+  release:
+    types: [created]
+
+  workflow_dispatch:
+    inputs:
+      release:
+        description: 'Release tag where to create the binaries (as SemVer vX.X.X)'
+        required: true
+        default: v0.1.0
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build:
+    name: Release Kubernetes manifests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.19'
+          check-latest: true
+      - name: Build TODO
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            export TAG="${{ github.ref_name }}"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            export TAG="${{ inputs.release }}"
+          fi
+
+          export IMG="ghcr.io/$GITHUB_REPOSITORY:$TAG"          
+          make bundle-build
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          body: ""
+          files: |
+            deploy/bundle.yaml
+          append_body: true
+          generate_release_notes: false
