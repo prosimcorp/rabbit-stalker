@@ -69,7 +69,7 @@ spec:
         - --leader-elect
         command:
         - /manager
-        image: prosimcorp/rabbit-stalker:v1.0.0
+        image: ghcr.io/prosimcorp/rabbit-stalker:v1.1.0
         livenessProbe:
           httpGet:
             path: /healthz
