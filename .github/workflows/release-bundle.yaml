@@ -19,9 +19,6 @@ jobs:
   build:
     name: Release Kubernetes manifests
     runs-on: ubuntu-latest
-    #outputs:
-    #  release_tag: ${{ steps.build.outputs.release_tag }}
-
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v5

@@ -504,10 +504,10 @@ the tag of the version you want to deploy as follows:
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-- https://github.com/docplanner/rabbit-stalker//deploy/?ref=main
+- https://github.com/prosimcorp/rabbit-stalker/releases/download/v1.1.0/bundle.yaml
 ```
 
-> Notice you can change `?ref=main` to match some specific release, for example: `?ref=v0.1.0`
+> Notice you can change `v1.1.0` to match some specific release, for example: `v1.x.x`
 
 #### Hard way
 
@@ -524,13 +524,13 @@ kubectl apply -f config/samples/
 2. Build and push your image to the location specified by `IMG`:
 
 ```sh
-make docker-build docker-push IMG=docplanner/rabbit-stalker:tag
+make docker-build docker-push IMG=ghcr.io/prosimcorp/rabbit-stalker:tag
 ```
 
 3. Deploy the controller to the cluster with the image specified by `IMG`:
 
 ```sh
-make deploy IMG=docplanner/rabbit-stalker:tag
+make deploy IMG=ghcr.io/prosimcorp/rabbit-stalker:tag
 ```
 
 ### Uninstall CRDs
