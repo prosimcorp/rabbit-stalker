@@ -31,15 +31,58 @@ jobs:
           - goarch: arm64
             goos: windows
     steps:
+      - id: read_tag
+        name: Read release tag name (mostly vx.x.x)
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            export TAG="${{ github.ref_name }}"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            export TAG="${{ inputs.release }}"
+          fi
+
+          echo "release_tag=${TAG}" >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@v3
+        with:
+          ref: ${{ steps.read_tag.outputs.release_tag }}
+
+      - name: Read Go version from go.mod
+        id: read_go_version
+        run: |
+          go_version_raw=$(grep "^go " go.mod | awk '{print $2}')
+          echo "go_version=${go_version_raw}" >> "$GITHUB_OUTPUT"
+
+      # Find the path for main.go file as recently golang project
+      # structure was finally standardized
+      - name: Determine main.go path
+        id: find_main_go
+        run: |
+          if [ -f "./main.go" ]; then
+            echo "main_go_path=./" >> "$GITHUB_OUTPUT"
+          else
+            echo "main_go_path=./cmd/" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Omit the LICENSE file only for the very first release.
+      # This step is only to manage some technical debt we caused in the beginning.
+      - name: Find release extra files
+        id: find_release_extra_files
+        run: |
+          if [ -f "./LICENSE" ]; then
+            echo "release_extra_files=LICENSE README.md" >> "$GITHUB_OUTPUT"
+          else
+            echo "release_extra_files=README.md" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: wangyoucao577/go-release-action@v1.31
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           goos: ${{ matrix.goos }}
           goarch: ${{ matrix.goarch }}
-          goversion: "https://dl.google.com/go/go1.19.13.linux-amd64.tar.gz"
-          project_path: "./"
+          #goversion: "${{ steps.read_go_version.outputs.go_version }}"
+          goversion: "https://dl.google.com/go/go${{ steps.read_go_version.outputs.go_version }}.linux-amd64.tar.gz"
+          project_path: "${{ steps.find_main_go.outputs.main_go_path }}"
           binary_name: "rabbit-stalker"
           release_tag: ${{ inputs.release }}
           overwrite: true
-          extra_files: LICENSE README.md
+          extra_files: "${{ steps.find_release_extra_files.outputs.release_extra_files }}"
