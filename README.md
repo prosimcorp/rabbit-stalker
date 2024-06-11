@@ -19,9 +19,12 @@ some condition, it's able to restart or delete a Kubernetes workload
 
 ----
 
-> Hello there! a little advise: we crafted this wonderful project at [DocPlanner Tech](https://www.docplanner.tech/)
-> so you will see some references to the company across the repo. We moved it to ProsimCorp to assure the continuity
-> of the project, so we are in the process of moving everything. Expect some CRDs' headers change a bit because of that
+> **ATTENTION:** From v1.1.0+ bundled Kubernetes deployment manifests are built and uploaded to the releases.
+> We do this to keep them atomic between versions. Due to this, `deploy` directory will be removed from repository.
+> Please, read [related section](#deployment)
+
+> Hello there! a little advise: we crafted this wonderful project at [DocPlanner Tech](https://www.docplanner.tech/).
+> We moved it to ProsimCorp to assure the continuity of the project. Are you willing to contribute?
 
 ## Description
 This project was motivated by a failure. Most famous PHP/Python libraries can establish connection with AMQP servers
@@ -508,6 +511,8 @@ resources:
 ```
 
 > Notice you can change `v1.1.0` to match some specific release, for example: `v1.x.x`
+
+> 🧚🏼 **Hey, listen! If you prefer to deploy using Helm, go to the [Helm registry](https://github.com/prosimcorp/helm-charts)**
 
 #### Hard way
 
