@@ -5,17 +5,15 @@
 Kubernetes Operator to get status related to specific queues on RabbitMQ. Depending on 
 some condition, it's able to restart or delete a Kubernetes workload
 
-<p>
-  <a href="https://github.com/kubernetes/kubernetes/releases">
-    <img src="https://img.shields.io/badge/Kubernetes-%3E%3D%201.18-brightgreen" alt="kubernetes">
-  </a>
-  <a href="https://golang.org/doc/go1.19">
-    <img src="https://img.shields.io/github/go-mod/go-version/prosimcorp/rabbit-stalker?color=blueviolet" alt="go-version">
-  </a>
-  <a href="https://opensource.org/licenses/Apache-2.0">
-    <img src="https://img.shields.io/badge/License-Apache%202.0-ff69b4.svg" alt="license">
-  </a>
-</p>
+![Kubernetes](https://img.shields.io/badge/Kubernetes-%3E%3D%201.18-brightgreen)
+![GitHub Release](https://img.shields.io/github/v/release/prosimcorp/rabbit-stalker)
+![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/prosimcorp/rabbit-stalker)
+[![Go Report Card](https://goreportcard.com/badge/github.com/prosimcorp/rabbit-stalker)](https://goreportcard.com/report/github.com/prosimcorp/rabbit-stalker)
+![image pulls](https://img.shields.io/badge/+2k-brightgreen?label=image%20pulls)
+![GitHub License](https://img.shields.io/github/license/prosimcorp/rabbit-stalker)
+
+![GitHub User's stars](https://img.shields.io/github/stars/prosimcorp?label=Prosimcorp%20Stars)
+![GitHub followers](https://img.shields.io/github/followers/prosimcorp?label=Prosimcorp%20Followers)
 
 ----
 
