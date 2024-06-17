@@ -10,7 +10,7 @@ some condition, it's able to restart or delete a Kubernetes workload
     <img src="https://img.shields.io/badge/Kubernetes-%3E%3D%201.18-brightgreen" alt="kubernetes">
   </a>
   <a href="https://golang.org/doc/go1.19">
-    <img src="https://img.shields.io/github/go-mod/go-version/aws/aws-node-termination-handler?color=blueviolet" alt="go-version">
+    <img src="https://img.shields.io/github/go-mod/go-version/prosimcorp/rabbit-stalker?color=blueviolet" alt="go-version">
   </a>
   <a href="https://opensource.org/licenses/Apache-2.0">
     <img src="https://img.shields.io/badge/License-Apache%202.0-ff69b4.svg" alt="license">
