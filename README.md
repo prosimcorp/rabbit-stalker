@@ -109,10 +109,17 @@ spec:
 
   # The workload affected by the action
   workloadRef:
+    # It's possible to use core resources from Kubernetes
     apiVersion: apps/v1
     kind: Deployment
     name: testing-workload
     namespace: default
+
+    # Some custom resources can be used too
+    # apiVersion: argoproj.io/v1alpha1
+    # kind: Rollout
+    # name: testing-workload-argo-rollout
+    # namespace: default
 ```
 
 #### Queue names/regex
