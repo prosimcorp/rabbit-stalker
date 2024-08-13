@@ -1,0 +1,17 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: testing-workload-argo-rollout
+  
+# .spec.restartAt is the field that must change for a Rollout
+spec:
+  workloadRef: 
+    apiVersion: apps/v1
+    kind: Deployment
+    name: testing-workload
+    # scaleDown: never|onsuccess|progressively
+    scaleDown: never
+
+  
+
+

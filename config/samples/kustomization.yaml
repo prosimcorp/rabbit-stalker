@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  # Non core supported CRDs to test
+  - https://raw.githubusercontent.com/argoproj/argo-rollouts/master/manifests/crds/rollout-crd.yaml
+
+  # Core workloads
+  - testing-secret.yaml
+  - testing-workload.yaml
+
+  # Non core workloads
+  - testing-workload-argo-rollout.yaml
+
+  # 
+  - rabbit-stalker_v1alpha1_workloadaction.yaml

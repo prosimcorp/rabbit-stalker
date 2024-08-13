@@ -344,14 +344,14 @@ func argoRolloutPatchConstructor(obj *unstructured.Unstructured) (patch PatchCon
 
 	patchTimestamp := time.Now().Format(time.RFC3339)
 
-	patch.Patch = []byte(fmt.Sprintf(`{"spec":{"restartAt":%s}}`, patchTimestamp))
-	patch.PatchType = types.StrategicMergePatchType
+	patch.Patch = []byte(fmt.Sprintf(`{"spec":{"restartAt":"%s"}}`, patchTimestamp))
+	patch.PatchType = types.MergePatchType
 
 	return patch, nil
 }
 
-// SetWorkloadRestartPatch restart a workload by changing an annotation.
-// This will trigger an automatic reconciliation on the workload in the same way done by kubectl
+// SetWorkloadRestartPatch restart a workload by changing a field into the specified object.
+// This will trigger an automatic reconciliation on the workload in the same way done by kubectl, ArgoRollouts, etc.
 func (r *WorkloadActionReconciler) SetWorkloadRestartPatch(ctx context.Context, obj *unstructured.Unstructured) (err error) {
 
 	var patchConstructorMap map[string]PatchConstructorFuncPointerT = map[string]PatchConstructorFuncPointerT{
