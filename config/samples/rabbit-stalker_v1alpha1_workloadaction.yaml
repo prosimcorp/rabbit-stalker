@@ -16,7 +16,7 @@ spec:
   rabbitConnection:
     url: "https://your-server.rmq.cloudamqp.com"
     queue: "your-queue-here"
-    useRegex: true
+    useRegex: false
 
     # (Optional) Vhost can be set (or not) when searching queues using regex patterns,
     # (Mandatory) Vhost is required for searches based on exact queue names.
@@ -63,8 +63,16 @@ spec:
 
   # The workload affected by the action
   workloadRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: testing-workload
+    
+    # It's possible to use core resources from Kubernetes
+    #apiVersion: apps/v1
+    #kind: Deployment
+    #name: testing-workload
+    #namespace: default
+
+    # Some custom resources can be used too
+    apiVersion: argoproj.io/v1alpha1
+    kind: Rollout
+    name: testing-workload-argo-rollout
     namespace: default
 

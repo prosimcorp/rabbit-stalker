@@ -37,7 +37,7 @@ restart the related workload.
 This is exactly what this operator does, but with vitamins:
 * Includes [GJSON](https://github.com/tidwall/gjson) on conditions to look for a particular field in the huge JSON given by RabbitMQ
 * It supports giving credentials (or not) to access RabbitMQ
-* Support restarting several workload types: `Deployment` `DaemonSet` `StatefulSet`
+* Support restarting several workload types: `Deployment` `DaemonSet` `StatefulSet` `Argo Rollout`
 
 Any discussion can be done on issues. Most interesting questions will be included on our [FAQ section](./README.md#faq-frequently-asked-questions)
 
@@ -109,10 +109,17 @@ spec:
 
   # The workload affected by the action
   workloadRef:
+    # It's possible to use core resources from Kubernetes
     apiVersion: apps/v1
     kind: Deployment
     name: testing-workload
     namespace: default
+
+    # Some custom resources can be used too
+    # apiVersion: argoproj.io/v1alpha1
+    # kind: Rollout
+    # name: testing-workload-argo-rollout
+    # namespace: default
 ```
 
 #### Queue names/regex

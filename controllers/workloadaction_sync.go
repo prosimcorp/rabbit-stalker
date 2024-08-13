@@ -57,6 +57,7 @@ const (
 	ResourceKindDeployment  = "Deployment"
 	ResourceKindStatefulSet = "StatefulSet"
 	ResourceKindDaemonSet   = "DaemonSet"
+	ResourceKindArgoRollout = "Rollout"
 
 	// TODO
 	ActionDelete  = "delete"
@@ -320,7 +321,7 @@ func defaultPatchConstructor(obj *unstructured.Unstructured) (patch PatchConstru
 	return patch, err
 }
 
-// deploymentPatchConstructor return a patch for deployment resources to be used in SetWorkloadRestartAnnotation
+// deploymentPatchConstructor return a patch for deployment resources to be used in SetWorkloadRestartPatch
 func deploymentPatchConstructor(obj *unstructured.Unstructured) (patch PatchConstructorPatchT, err error) {
 	pausedValue, found, err := unstructured.NestedBool(obj.Object, "spec", "paused")
 	if err != nil {
@@ -337,14 +338,27 @@ func deploymentPatchConstructor(obj *unstructured.Unstructured) (patch PatchCons
 	return patch, err
 }
 
-// SetWorkloadRestartAnnotation restart a workload by changing an annotation.
-// This will trigger an automatic reconciliation on the workload in the same way done by kubectl
-func (r *WorkloadActionReconciler) SetWorkloadRestartAnnotation(ctx context.Context, obj *unstructured.Unstructured) (err error) {
+// argoRolloutPatchConstructor return a patch for Argo Rollout resources to be used in SetWorkloadRestartPatch
+// Ref: https://argo-rollouts.readthedocs.io/en/stable/features/restart/
+func argoRolloutPatchConstructor(obj *unstructured.Unstructured) (patch PatchConstructorPatchT, err error) {
+
+	patchTimestamp := time.Now().Format(time.RFC3339)
+
+	patch.Patch = []byte(fmt.Sprintf(`{"spec":{"restartAt":"%s"}}`, patchTimestamp))
+	patch.PatchType = types.MergePatchType
+
+	return patch, nil
+}
+
+// SetWorkloadRestartPatch restart a workload by changing a field into the specified object.
+// This will trigger an automatic reconciliation on the workload in the same way done by kubectl, ArgoRollouts, etc.
+func (r *WorkloadActionReconciler) SetWorkloadRestartPatch(ctx context.Context, obj *unstructured.Unstructured) (err error) {
 
 	var patchConstructorMap map[string]PatchConstructorFuncPointerT = map[string]PatchConstructorFuncPointerT{
 		ResourceKindDeployment:  deploymentPatchConstructor,
 		ResourceKindStatefulSet: defaultPatchConstructor,
 		ResourceKindDaemonSet:   defaultPatchConstructor,
+		ResourceKindArgoRollout: argoRolloutPatchConstructor,
 	}
 
 	resourceType := obj.GetObjectKind().GroupVersionKind()
@@ -663,7 +677,7 @@ func (r *WorkloadActionReconciler) reconcileWorkloadAction(ctx context.Context, 
 	// 7. Condition is met. Execute the action
 	switch workloadActionManifest.Spec.Action {
 	case ActionRestart:
-		err = r.SetWorkloadRestartAnnotation(ctx, targetObject)
+		err = r.SetWorkloadRestartPatch(ctx, targetObject)
 	case ActionDelete:
 		err = errors.New(DeleteActionNotImplementedErrorMessage)
 	default:
